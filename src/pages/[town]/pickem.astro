@@ -1,0 +1,43 @@
+---
+import Base from "../../layouts/Base.astro";
+import Page from "../../components/Page.astro";
+import { getTown, getAlerts, getAds, sb } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const now = new Date().toISOString();
+const [alerts, ad, { data: games }, { data: board }] = await Promise.all([
+  getAlerts(town.id), getAds(town.id, "category-sponsor", "sports"),
+  sb.from("games").select("id,starts_at,opponent,home,result,us,them,teams!inner(is_home_town,town_id)").eq("teams.is_home_town", true).eq("teams.town_id", town.id).eq("sport", "football").order("starts_at"),
+  sb.from("pickem_board").select("*").order("pts", { ascending: false }).order("played", { ascending: false }).limit(15),
+]);
+const next = (games ?? []).find((g) => !g.result && g.starts_at > now);
+const last = [...(games ?? [])].reverse().find((g) => g.result);
+const counts = next ? (await sb.rpc("pick_counts", { p_game: next.id })).data : null;
+const when = (iso: string) => new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+Astro.response.headers.set("Cache-Control", "public, max-age=120, s-maxage=120");
+---
+<Base title={`${town.team_name ?? "Football"} Pick'em — ${town.name} Wire`} {town} {alerts} desc={`Predict the ${town.name} ${town.team_name} score every week. Season leaderboard, and the week's best picker is named in the morning email.`}>
+  <Page {town} title={`${town.team_name} Pick'em`} dek="Call the score before kickoff. Right winner: 5 points. Within a touchdown on both scores: 3 more. Exact score: 10 more. The season leader gets bragging rights in the morning email.">
+    {ad && <a class="presented-by" href={`/go/${ad.id}`} rel="sponsored"><span>Pick'em presented by</span><b>{ad.headline}</b></a>}
+    {next ? <section class="pk">
+      <div class="pk-head"><span>This week</span><h2>{town.name} {next.home ? "vs" : "at"} {next.opponent}</h2><p>{when(next.starts_at)}. Picks close at kickoff.</p></div>
+      <form class="pk-form" data-game={next.id}>
+        <div class="pk-score"><label>{town.name}<input name="us" type="number" min="0" max="99" required inputmode="numeric" /></label><span>to</span><label>{next.opponent}<input name="them" type="number" min="0" max="99" required inputmode="numeric" /></label></div>
+        <div class="mcalc"><label>First and last name (shown as "Jordan M.")<input name="name" required maxlength="60" /></label><label>Email (not shown; one pick per game)<input name="email" type="email" required maxlength="200" /></label></div>
+        <button class="btn">Lock in my pick</button><p class="pk-msg" aria-live="polite"></p>
+      </form>
+      {counts?.n > 0 && <p class="fix">{counts.n} {counts.n === 1 ? "reader has" : "readers have"} picked. {Math.round((counts.win / counts.n) * 100)}% pick {town.name} to win; average pick {town.name} {counts.avg_us}, {next.opponent} {counts.avg_them}.</p>}
+      <script is:inline>
+        (function(){ var f=document.querySelector('.pk-form'); if(!f) return; var m=f.querySelector('.pk-msg'); var saved=JSON.parse(localStorage.getItem('cw_pick_me')||'{}'); if(saved.name){f.name.value=saved.name;f.email.value=saved.email;}
+          f.addEventListener('submit',function(e){e.preventDefault(); m.textContent='Saving...';
+            fetch('/api/play',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'pick',game:f.dataset.game,name:f.name.value,email:f.email.value,us:+f.us.value,them:+f.them.value})})
+            .then(function(r){return r.json()}).then(function(r){ if(r.result==='ok'){ localStorage.setItem('cw_pick_me',JSON.stringify({name:f.name.value,email:f.email.value})); m.textContent='Locked in. You can change it until kickoff.'; } else m.textContent= r.result==='closed' ? 'Picks are closed for this game.' : 'Please check your name, email and scores.'; }); });})();
+      </script>
+    </section> : <div class="empty-cta"><b>No game on the schedule right now.</b><p>Pick'em opens for each game as soon as it's on the schedule.</p></div>}
+
+    <h3 class="group">Season leaderboard</h3>
+    {(board ?? []).length === 0 ? <p class="empty">No picks scored yet. Be the first on the board.</p> :
+      <ol class="lb">{board!.map((r, i) => <li><span class="lb-n">{i + 1}</span><b>{r.display}</b><span class="lb-p">{r.pts} pts</span><small>{r.played} {r.played === 1 ? "game" : "games"}</small></li>)}</ol>}
+    {last && <p class="fix">Last game: {town.name} {last.us}, {last.opponent} {last.them}. Picks are scored within an hour of the final.</p>}
+    <p class="fix">Must be 13 or older to play. One pick per email per game. Names are shown as first name and last initial.</p>
+  </Page>
+</Base>

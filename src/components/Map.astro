@@ -1,0 +1,23 @@
+---
+// Lightweight map (Leaflet + OpenStreetMap tiles, credited). Pins: [{lat,lng,name,href,n}]
+const { pins = [], height = "22rem", id = "map" } = Astro.props;
+const pts = pins.filter((p: any) => p.lat && p.lng);
+---
+{pts.length > 0 && <>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <div id={id} class="map" style={`height:${height}`} role="region" aria-label="Map"></div>
+  <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script is:inline define:vars={{ pts, id }}>
+    (function(){ if (!window.L) return;
+      var m = L.map(id, { scrollWheelZoom: false, attributionControl: true });
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(m);
+      var b = [];
+      pts.forEach(function(p){
+        var icon = L.divIcon({ className: 'pin', html: '<span>' + (p.n || '') + '</span>', iconSize: [28, 28], iconAnchor: [14, 28] });
+        L.marker([p.lat, p.lng], { icon: icon }).addTo(m).bindPopup('<a href="' + p.href + '"><b>' + p.name.replace(/</g,'&lt;') + '</b></a>');
+        b.push([p.lat, p.lng]);
+      });
+      if (b.length === 1) m.setView(b[0], 15); else m.fitBounds(b, { padding: [24, 24], maxZoom: 15 });
+    })();
+  </script>
+</>}

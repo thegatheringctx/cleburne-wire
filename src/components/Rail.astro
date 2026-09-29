@@ -1,0 +1,33 @@
+---
+// Shared sidebar for every inner page: coming up, latest headlines, the morning email, and an ad slot.
+import HouseAd from "./HouseAd.astro";
+import Poll from "./Poll.astro";
+import { sb, getAds } from "../lib/db";
+const { town, exclude = null, events = true, headlines = true } = Astro.props;
+const now = new Date();
+const [evRes, hlRes, ad, mrRes] = await Promise.all([
+  events ? sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").gte("event_at", now.toISOString()).order("event_at").limit(30) : Promise.resolve({ data: [] }),
+  headlines ? sb.from("stories").select("id,title,published_at").eq("status","published").not("category","in","(events,weather,obituaries)").is("event_at", null).not("local_checked_at","is",null).or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).order("score",{ascending:false}).order("published_at",{ascending:false}).gte("published_at", new Date(now.getTime()-7*864e5).toISOString()).limit(10) : Promise.resolve({ data: [] }),
+  getAds(town.id, "sidebar"),
+  headlines ? sb.rpc("most_read", { p_town: town.id, p_days: 3, p_limit: 6 }) : Promise.resolve({ data: [] }),
+]);
+const mr = (mrRes.data ?? []).filter((s: any) => s.id !== exclude).slice(0, 5);
+const seen = new Set<string>();
+const ev = (evRes.data ?? []).filter((e: any) => { const k = e.title.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
+const hl = (hlRes.data ?? []).filter((s: any) => s.id !== exclude).slice(0, 5);
+const d = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(iso).toLocaleDateString("en-US", { timeZone: "America/Chicago", ...o });
+---
+<aside class="rail">
+  {(mr.length >= 3 ? mr : hl).length > 0 && <section><h3>{mr.length >= 3 ? "Most read" : "Top stories"}</h3><ol class="ranked">{(mr.length >= 3 ? mr : hl).map((s: any) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a></li>)}</ol></section>}
+  <section class="join">
+    <h3>The morning email</h3>
+    <p>{town.name} news and weather in your inbox at 7, every weekday.</p>
+    <form method="post" action="/api/subscribe"><input type="hidden" name="town" value={town.slug} /><input type="email" name="email" placeholder="Your email" required aria-label="Email address" /><button class="btn">Subscribe</button></form>
+  </section>
+  <Poll {town} />
+  {ev.length > 0 && <section><h3>Coming up</h3>
+    <ul>{ev.map((e: any) => <li class="when"><div class="d"><span>{d(e.event_at,{weekday:"short"})}</span><b>{d(e.event_at,{day:"numeric"})}</b></div><div><a href={`/${town.slug}/s/${e.id}`}>{e.title}</a>{e.location && <small>{e.location.split(",")[0]}</small>}</div></li>)}</ul>
+    <p style="margin:.8rem 0 0"><a href={`/${town.slug}/events`} style="font-weight:700;color:var(--navy-2)">Full calendar</a></p>
+  </section>}
+  {ad ? <a class="sponsor" href={`/go/${ad.id}`} rel="sponsored"><small>Sponsored</small><b>{ad.headline}</b>{ad.body}</a> : <HouseAd {town} variant="rail" />}
+</aside>

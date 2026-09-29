@@ -1,0 +1,18 @@
+---
+import Base from "../layouts/Base.astro";
+const code = (show: string) => `<iframe src="https://cleburnewire.com/embed/cleburne?show=${show}" width="100%" height="${show === "both" ? 520 : 330}" style="border:0;max-width:420px" title="Cleburne Wire local news" loading="lazy"></iframe>`;
+---
+<Base title="Free Cleburne news and events box for your website" desc="Churches, schools, nonprofits and businesses: add a free, always-current Cleburne news and events box to your website with one line of code.">
+  <header class="page-head"><h1>Free news box for your website</h1><p class="dek">Churches, schools, nonprofits and businesses: show your visitors what's happening in Cleburne, always up to date, at no cost. Copy one line into your site.</p></header>
+  <div class="single">
+    <h3 class="group">News and events</h3>
+    <iframe src="/embed/cleburne?show=both" width="100%" height="520" style="border:0;max-width:420px" title="Preview"></iframe>
+    <p class="fix">Copy this into your website (Wix, Squarespace and WordPress all have an "embed code" block):</p>
+    <textarea readonly rows="3" style="width:100%;font:13px monospace" onclick="this.select()">{code("both")}</textarea>
+    <h3 class="group">Events only</h3>
+    <textarea readonly rows="3" style="width:100%;font:13px monospace" onclick="this.select()">{code("events")}</textarea>
+    <h3 class="group">News only</h3>
+    <textarea readonly rows="3" style="width:100%;font:13px monospace" onclick="this.select()">{code("news")}</textarea>
+    <p class="fix">Questions or want your own events featured? Email <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a>.</p>
+  </div>
+</Base>

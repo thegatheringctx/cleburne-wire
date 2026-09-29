@@ -1,0 +1,49 @@
+---
+import Page from "../../../components/Page.astro";
+import Base from "../../../layouts/Base.astro";
+import BizRow from "../../../components/BizRow.astro";
+import { sb, getTown, getAlerts, getBusinesses, getFeed, getLatestRate, getAds, stars, fmtTime } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const [alerts, agents, lenders, insurers, dealers, news, rate, ad] = await Promise.all([
+  getAlerts(town.id), getBusinesses(town.id, "real-estate", 40), getBusinesses(town.id, "mortgage", 8), getBusinesses(town.id, "insurance", 6),
+  getBusinesses(town.id, "car-dealers", 8), getFeed(town.id, "real-estate", 8), getLatestRate(), getAds(town.id, "category-sponsor", "homes")]);
+const { data: listings } = await sb.from("listings").select("*").eq("town_id", town.id).eq("status", "active").gt("expires_at", new Date().toISOString()).order("featured", { ascending: false }).order("open_house_at", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).limit(24);
+const money = (n: number) => "$" + n.toLocaleString("en-US");
+const oh = (l: any) => l.open_house_at ? new Date(l.open_house_at).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
+Astro.response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600");
+---
+<Base title={`Homes, money & cars in ${town.name}, TX — ${town.name} Wire`} {town} {alerts} desc={`Mortgage rates, top-rated realtors, banks and lenders, insurance agents, and car dealers in ${town.name}, Texas.`}>
+  <Page {town} title="Homes, money and cars" dek={`Every real estate company in ${town.name}, this week's mortgage rate, local real estate news, and the best-reviewed lenders, insurers and dealers.`}>
+    {rate ? <div class="hero-stat"><b>{rate.rate_30}%</b><span>30-year fixed, national average<br/>Freddie Mac, week of {new Date(rate.as_of + "T12:00:00Z").toLocaleDateString("en-US",{month:"long",day:"numeric"})}{rate.rate_15 ? `. 15-year: ${rate.rate_15}%` : ""}</span></div>
+          : <div class="hero-stat"><b>--</b><span>The weekly mortgage rate updates every Thursday.</span></div>}
+    {ad && (ad.image_url ? <section class="sp-card">
+      <img src={ad.image_url} alt={ad.headline} loading="lazy" />
+      <div>
+        <small>Presented by</small>
+        <h2>{ad.headline}</h2>
+        <p>{ad.body}</p>
+        <a class="btn" href={`/go/${ad.id}`} rel="sponsored">{ad.cta_label ?? "Learn more"}</a>
+        {(ad.links ?? []).length > 0 && <div class="sp-links">{(ad.links ?? []).map((l: any) => <a href={l.url} rel="sponsored noopener" target={l.url.startsWith("tel:") ? undefined : "_blank"}>{l.label}</a>)}</div>}
+      </div>
+    </section> : <a class="sponsor" href={`/go/${ad.id}`} rel="sponsored"><small>Sponsored</small><b>{ad.headline}</b>{ad.body}</a>)}
+    <h3 class="group">Open houses and new listings <a href={`/${town.slug}/homes/list`}>Agents: add yours free</a></h3>
+    {(listings ?? []).length === 0 ? <div class="empty-cta"><b>Agents: put your {town.name} listings here, free.</b><p>New listings and open houses show on this page, in the events calendar and the weekend guide. Takes two minutes.</p><a class="btn" href={`/${town.slug}/homes/list`}>Add a listing or open house</a></div> :
+    <div class="lst-grid">{(listings ?? []).map((l) => <article class={`lst ${l.featured ? "feat" : ""}`}>
+      {l.photo_url ? <img referrerpolicy="no-referrer" src={l.photo_url} alt={l.address} loading="lazy" onerror="this.onerror=null;this.remove()" /> : <div class="lst-ph"><i style="--ico:url(/icons/house.svg)"></i></div>}
+      <div class="lst-body">
+        {oh(l) && <span class="lst-oh">Open house {oh(l)}</span>}
+        {l.price && <b class="lst-price">{money(l.price)}</b>}
+        <h2>{l.address.split(",")[0]}</h2>
+        <p class="lst-facts">{[l.beds && `${l.beds} bd`, l.baths && `${l.baths} ba`, l.sqft && `${l.sqft.toLocaleString()} sq ft`].filter(Boolean).join("  |  ")}</p>
+        <p class="lst-agent">{l.agent_name}, {l.brokerage}{l.agent_phone ? ` ${l.agent_phone}` : ""}</p>
+        {l.listing_url && <a class="lst-link" href={l.listing_url} target="_blank" rel="noopener nofollow">See the listing</a>}
+      </div>
+    </article>)}</div>}
+    <h3 class="group">Real estate companies in {town.name} <span style="font-weight:600;font-size:.88rem;color:var(--slate)">{agents.length} listed</span></h3>{agents.map((b, i) => <BizRow {b} {i} {town} />)}
+    {news.length > 0 && <><h3 class="group">Real estate news <a href={`/${town.slug}/real-estate`}>See all</a></h3><ul class="plain">{news.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a><small>{fmtTime(s.published_at)}</small></li>)}</ul></>}
+    <h3 class="group">Banks and lenders <a href={`/${town.slug}/guide/mortgage`}>See all</a></h3>{lenders.map((b, i) => <BizRow {b} {i} {town} />)}
+    <h3 class="group">Insurance <a href={`/${town.slug}/guide/insurance`}>See all</a></h3>{insurers.map((b, i) => <BizRow {b} {i} {town} />)}
+    <h3 class="group">Car dealers <a href={`/${town.slug}/guide/car-dealers`}>See all</a></h3>{dealers.map((b, i) => <BizRow {b} {i} {town} />)}
+    <div class="notice" style="margin-top:2rem"><b>Agents, lenders and dealers:</b> put your listings, rates or inventory at the top of this page. <a href="/advertise">See options</a></div>
+  </Page>
+</Base>

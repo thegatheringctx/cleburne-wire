@@ -1,0 +1,15 @@
+---
+// Standard inner-page frame: breadcrumb, headline, dek, then main column + shared rail.
+import Rail from "./Rail.astro";
+const { town, title, dek = null, crumbs = [], rail = true, railProps = {} } = Astro.props;
+---
+<header class="page-head">
+  {crumbs.length > 0 && <nav class="crumbs" aria-label="Breadcrumb">{crumbs.map((c: any) => <a href={c.href}>{c.label}</a>)}</nav>}
+  <h1>{title}</h1>
+  {dek && <p class="dek">{dek}</p>}
+  <slot name="head" />
+</header>
+<div class={rail ? "columns" : "single"}>
+  <div class="main"><slot /></div>
+  {rail && <Rail {town} {...railProps} />}
+</div>

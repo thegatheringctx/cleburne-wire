@@ -1,0 +1,40 @@
+---
+import Base from "../../layouts/Base.astro";
+import Page from "../../components/Page.astro";
+import { getTown, getAlerts, getFeed, sb, fmtTime } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const now = new Date();
+const [alerts, news, { data: meet }, { data: games }] = await Promise.all([
+  getAlerts(town.id), getFeed(town.id, "schools", 25),
+  sb.from("stories").select("id,title,summary,body,event_at,source_url").eq("status","published").eq("category","schools").gte("event_at", new Date(now.getTime() - 3 * 36e5).toISOString()).order("event_at").limit(3),
+  sb.from("games").select("starts_at,opponent,home,result,us,them,sport,teams!inner(is_home_town,town_id)").eq("teams.is_home_town", true).eq("teams.town_id", town.id).gte("starts_at", now.toISOString()).order("starts_at").limit(3),
+]);
+const closures = alerts.filter((a: any) => /closure|closed|delay|ice|winter|flood/i.test(a.title));
+const stories = news.filter((s) => !s.event_at);
+const D = "https://www.c-isd.com";
+Astro.response.headers.set("Cache-Control", "public, max-age=600, s-maxage=600");
+---
+<Base title={`${town.name} ISD for parents: board decisions, calendar, closures`} {town} {alerts} desc={`What ${town.name} ISD parents need: school board decisions in plain English, closures, the district calendar, and Yellow Jackets games.`}>
+  <Page {town} title={`${town.name} ISD for parents`} dek="School board decisions in plain English, closures, the district calendar and this week's games, in one place.">
+    {closures.length > 0 && <div class="notice" style="border-left:6px solid var(--alert)"><b>Weather alert:</b> {closures[0].title}. Check the district site for closure or delay decisions.</div>}
+    <div class="util-grid">
+      <div class="util"><b>District calendar</b><span>Holidays, early release and testing days.</span><a href={`${D}/calendar`} target="_blank" rel="noopener">Open the calendar</a></div>
+      <div class="util"><b>School board</b><span>Meeting dates, agendas and trustees.</span><a href={`${D}/about-us/board-of-trustees/board-meeting-dates`} target="_blank" rel="noopener">Meeting dates</a><a href={`${D}/about-us/board-of-trustees/board-of-trustees`} target="_blank" rel="noopener">Trustees</a></div>
+      <div class="util"><b>District website</b><span>Enrollment, menus, transportation and campus pages.</span><a href={D} target="_blank" rel="noopener">c-isd.com</a></div>
+      <div class="util gold"><b>Yellow Jackets</b><span>{(games ?? []).length ? `Next: ${(games ?? [])[0].sport} ${(games ?? [])[0].home ? "vs" : "at"} ${(games ?? [])[0].opponent}, ${new Date((games ?? [])[0].starts_at).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",timeZone:"America/Chicago"})}` : "Scores and schedules"}</span><a href={`/${town.slug}/sports`}>Sports</a></div>
+    </div>
+
+    {(meet ?? []).length > 0 && <><h3 class="group">Next school board meeting</h3>
+      {(meet ?? []).map((m) => <article class="meeting"><div>
+        <div class="kicker"><span>{fmtTime(m.event_at)}</span></div>
+        <h2><a href={`/${town.slug}/s/${m.id}`}>{m.title}</a></h2>
+        {m.body ? <div class="brief">{m.body.split("\n").filter(Boolean).map((l: string) => l.startsWith("- ") ? <p class="item">{l.slice(2)}</p> : <p>{l}</p>)}</div> : m.summary && <p>{m.summary}</p>}
+        {m.source_url && <p class="meta"><a href={m.source_url} target="_blank" rel="noopener nofollow">Read the full agenda</a></p>}
+      </div></article>)}</>}
+
+    <h3 class="group">School news <a href={`/${town.slug}/news`}>All news</a></h3>
+    {stories.length === 0 && <p class="empty">No school news this week.</p>}
+    <ul class="plain">{stories.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a><small>{s.source_name}, {fmtTime(s.published_at)}</small></li>)}</ul>
+    <p class="fix">Parents and teachers: send campus news, honors and events to <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a>.</p>
+  </Page>
+</Base>

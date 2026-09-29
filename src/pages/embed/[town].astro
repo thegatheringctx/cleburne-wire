@@ -1,0 +1,33 @@
+---
+// Partner widget: a small, self-contained news + events box other local sites can embed with one line.
+import { getTown, sb } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return new Response("Not found", { status: 404 });
+const show = Astro.url.searchParams.get("show") ?? "both";
+const now = new Date();
+const [{ data: news }, { data: ev }] = await Promise.all([
+  show !== "events" ? sb.rpc("top_stories", { p_town: town.slug, p_hours: 72, p_limit: 8 }) : Promise.resolve({ data: [] }),
+  show !== "news" ? sb.from("stories").select("id,title,event_at").eq("status", "published").eq("category", "events").gte("event_at", now.toISOString()).order("event_at").limit(30) : Promise.resolve({ data: [] }),
+]);
+const items = (news ?? []).filter((s: any) => !["events", "weather", "obituaries"].includes(s.category)).slice(0, 4);
+const seen = new Set<string>(); const events = (ev ?? []).filter((e: any) => { const k = e.title.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 4);
+const U = (p: string) => `https://cleburnewire.com${p}${p.includes("?") ? "&" : "?"}utm_source=partner`;
+const d = (iso: string) => new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric" });
+Astro.response.headers.set("Cache-Control", "public, max-age=900, s-maxage=900");
+---
+<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="robots" content="noindex" />
+<style>
+  body{margin:0;font:15px/1.4 Arial,Helvetica,sans-serif;color:#1B2430;background:#fff}
+  .w{border:1px solid #DCE3EA;border-top:5px solid #F4B400;border-radius:8px;overflow:hidden}
+  .h{background:#0E2238;color:#fff;padding:10px 12px;font:900 18px 'Arial Narrow',Arial;display:flex;justify-content:space-between;align-items:baseline}
+  .h span{color:#F4B400} .h small{font:600 11px Arial;color:#C9D5E3}
+  h4{margin:10px 12px 4px;font-size:12px;color:#C2410C;text-transform:uppercase;letter-spacing:.04em}
+  a.i{display:block;padding:8px 12px;border-bottom:1px solid #EEF2F6;color:#1B2430;text-decoration:none;font-weight:700}
+  a.i:hover{background:#F7F9FB} a.i small{display:block;font-weight:400;color:#5B6878;font-size:12px}
+  .f{padding:8px 12px;font-size:12px;background:#F7F9FB} .f a{color:#0E2238;font-weight:700}
+</style></head><body>
+<div class="w">
+  <div class="h"><span style="color:#fff">{town.name} <span>Wire</span></span><small>Local news</small></div>
+  {items.length > 0 && <><h4>News</h4>{items.map((s: any) => <a class="i" target="_blank" rel="noopener" href={U(`/${town.slug}/s/${s.id}`)}>{s.title}</a>)}</>}
+  {events.length > 0 && <><h4>Coming up</h4>{events.map((e: any) => <a class="i" target="_blank" rel="noopener" href={U(`/${town.slug}/s/${e.id}`)}>{e.title}<small>{d(e.event_at)}</small></a>)}</>}
+  <div class="f">Get {town.name} news every morning, free: <a target="_blank" rel="noopener" href={U(`/${town.slug}`)}>cleburnewire.com</a></div>
+</div></body></html>

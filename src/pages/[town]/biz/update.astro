@@ -1,0 +1,26 @@
+---
+import Base from "../../../layouts/Base.astro";
+import Page from "../../../components/Page.astro";
+import { getTown, sb } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const slug = Astro.url.searchParams.get("b") ?? "";
+const { data: b } = slug ? await sb.from("businesses").select("slug,name,website,image_url,phone,description").eq("slug", slug).eq("active", true).maybeSingle() : { data: null };
+const done = Astro.url.searchParams.get("done") === "1";
+Astro.response.headers.set("Cache-Control", "private, no-store");
+---
+<Base title={`Update your listing — ${town.name} Wire`} {town}>
+  <Page {town} title={done ? "Thanks. Your listing is updated." : b ? `Update ${b.name}` : "Update your business listing"} dek={done ? "Changes are live now. If you added a website but no photo, we'll pull your logo from your site within the hour." : "Free. Add your website and a photo so customers can find you. Changes go live right away."} rail={false}>
+    {done ? <p><a class="btn" href={`/${town.slug}/biz/${slug}`}>See your listing</a></p> : !b ? <p class="empty">Open your business's page in the <a href={`/${town.slug}/guide`}>Guide</a> and tap "Update this listing."</p> :
+    <form class="card" method="post" action="/api/biz-update">
+      <input type="hidden" name="town" value={town.slug} /><input type="hidden" name="slug" value={b.slug} />
+      <label>Website<input name="website" value={b.website ?? ""} placeholder="https://" maxlength="300" /></label>
+      <label>Photo or logo link (a .jpg, .png or .webp address; optional if you add a website)<input name="photo" value={b.image_url ?? ""} placeholder="https://.../photo.jpg" maxlength="500" /></label>
+      <label>Phone<input name="phone" value={b.phone ?? ""} maxlength="30" /></label>
+      <label>One line about your business (optional)<input name="desc" value={b.description ?? ""} maxlength="300" /></label>
+      <label>Your email (not shown publicly)<input type="email" name="email" required maxlength="200" /></label>
+      <input name="company" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true" />
+      <button class="btn">Save</button>
+      <p class="fix">By saving you confirm you own or manage this business. Want to be first in your category? <a href="/advertise">See featured listings</a>.</p>
+    </form>}
+  </Page>
+</Base>

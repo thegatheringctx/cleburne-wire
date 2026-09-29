@@ -1,0 +1,28 @@
+---
+import Base from "../layouts/Base.astro";
+import { sb, fmtTime } from "../lib/db";
+const q = (Astro.url.searchParams.get("q") ?? "").trim().slice(0, 80);
+const safe = q.replace(/[%,()*]/g, " ").trim();
+let stories: any[] = [], places: any[] = [], guides: any[] = [];
+if (safe.length >= 2) {
+  const like = `%${safe}%`;
+  const [a, b] = await Promise.all([
+    sb.from("stories").select("id,title,summary,category,published_at,event_at").eq("status","published").not("local_checked_at","is",null).or(`title.ilike.${like},summary.ilike.${like}`).order("published_at",{ascending:false}).limit(25),
+    sb.from("businesses").select("name,slug,category,address,rating").eq("active", true).or(`name.ilike.${like},category.ilike.${like},subcategory.ilike.${like}`).order("rating_count",{ascending:false,nullsFirst:false}).limit(12),
+  ]);
+  stories = a.data ?? []; places = b.data ?? [];
+  guides = ((await sb.from("explainers").select("slug,title,dek,keywords").eq("active", true)).data ?? []).filter((x: any) => [x.title, x.dek, ...(x.keywords ?? [])].join(" ").toLowerCase().includes(safe.toLowerCase()));
+}
+Astro.response.headers.set("Cache-Control", "public, max-age=120, s-maxage=120");
+---
+<Base title={q ? `Search: ${q} — Cleburne Wire` : "Search Cleburne Wire"}>
+  <header class="page-head"><h1>Search</h1>
+    <form class="search-form" method="get" action="/search"><input name="q" value={q} placeholder="Try: bond, football, tacos, library" aria-label="Search" autofocus /><button class="btn">Search</button></form>
+  </header>
+  <div class="single">
+    {q && stories.length === 0 && places.length === 0 && guides.length === 0 && <p class="empty">Nothing found for "{q}". Try a shorter word.</p>}
+    {guides.length > 0 && <><h3 class="group">Guides</h3><ul class="plain">{guides.map((g) => <li><a href={`/cleburne/explain/${g.slug}`}>{g.title}</a><small>{g.dek?.slice(0,120)}</small></li>)}</ul></>}
+    {places.length > 0 && <><h3 class="group">Places</h3><ul class="plain">{places.map((b) => <li><a href={`/cleburne/biz/${b.slug}`}>{b.name}</a><small>{({"pizza-italian":"Pizza and Italian","home-services":"Home services","things-to-do":"Things to do","real-estate":"Real estate","car-dealers":"Car dealers","auto-repair":"Auto repair","mortgage":"Banks and lenders"} as any)[b.category] ?? b.category.replace(/-/g," ").replace(/^\w/, (c: string) => c.toUpperCase())}{b.rating ? `, ${Number(b.rating).toFixed(1)} stars` : ""}{b.address ? `, ${b.address.split(",")[0]}` : ""}</small></li>)}</ul></>}
+    {stories.length > 0 && <><h3 class="group">Stories and events</h3><ul class="plain">{stories.map((s) => <li><a href={`/cleburne/s/${s.id}`}>{s.title}</a><small style="text-transform:capitalize">{s.category.replace("-"," ")}, {fmtTime(s.event_at ?? s.published_at)}</small></li>)}</ul></>}
+  </div>
+</Base>

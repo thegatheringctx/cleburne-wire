@@ -1,0 +1,49 @@
+---
+import Page from "../../../components/Page.astro";
+import Map from "../../../components/Map.astro";
+import BizRow from "../../../components/BizRow.astro";
+import Base from "../../../layouts/Base.astro";
+import { sb, phone as fmtPhone, getTown, getAlerts, getBusiness, getDirCategories, getAds, stars, price } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const b = await getBusiness(Astro.params.slug!); if (!b) return Astro.rewrite("/404");
+const [alerts, cats, ad] = await Promise.all([getAlerts(town.id), getDirCategories(), getAds(town.id, "sidebar")]);
+const cat = cats.find((c) => c.slug === b.category);
+// In the news: stories that name this business (distinctive names only, so "Sonic" alone doesn't match everything)
+const core = b.name.replace(/\s*\(.*?\)/g, "").replace(/\s*[-\u2013|].*$/, "").trim();
+const distinctive = core.length >= 8 && !/^(the |first |city |county )?(church|bank|school|park|library|pharmacy)$/i.test(core);
+const [{ data: news }, { data: near }] = await Promise.all([
+  distinctive ? sb.from("stories").select("id,title,published_at").eq("status", "published").not("local_checked_at", "is", null).or(`title.ilike.%${core.replace(/[%,()]/g, " ")}%,summary.ilike.%${core.replace(/[%,()]/g, " ")}%`).order("published_at", { ascending: false }).limit(5) : Promise.resolve({ data: [] }),
+  b.lat ? sb.from("businesses").select("*").eq("active", true).eq("category", b.category).neq("id", b.id).gte("lat", b.lat - 0.03).lte("lat", b.lat + 0.03).gte("lng", b.lng - 0.035).lte("lng", b.lng + 0.035).limit(30) : Promise.resolve({ data: [] }),
+]);
+const dist = (x: any) => Math.hypot((x.lat - b.lat) * 69, (x.lng - b.lng) * 58.5);
+const nearby = (near ?? []).filter((x: any) => x.lat).sort((a: any, c: any) => dist(a) - dist(c)).slice(0, 4);
+const maps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.name + " " + (b.address ?? ""))}&query_place_id=${b.place_id ?? ""}`;
+Astro.response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600");
+---
+<Base title={`${b.name} — ${town.name} Wire`} {town} {alerts} desc={`${b.name} in ${town.name}, TX: ${b.rating ? `${b.rating} stars from ${b.rating_count} reviews. ` : ""}${b.address ?? ""}`}>
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org", "@type": "LocalBusiness",
+    "name": b.name, "address": b.address ? { "@type": "PostalAddress", "streetAddress": b.address } : undefined,
+    "telephone": b.phone ?? undefined, "url": b.website ?? undefined,
+    ...(b.rating ? { "aggregateRating": { "@type": "AggregateRating", "ratingValue": b.rating, "reviewCount": b.rating_count ?? 1 } } : {}),
+  })} />
+  <Page {town} title={b.name} dek={b.address ?? null} crumbs={[{ label: "Guide", href: `/${town.slug}/guide` }, { label: cat?.name ?? "Listings", href: `/${town.slug}/guide/${b.category}` }]}>
+    {b.image_url && <img referrerpolicy="no-referrer" class="thumb" src={b.image_url} alt="" style="margin-bottom:1.2rem" onerror="this.onerror=null;this.remove()" />}
+    {b.tier === "featured" && <span class="badge" style="margin:0 0 1rem">Featured</span>}
+    {b.rating != null && <div class="hero-stat"><b>{Number(b.rating).toFixed(1)}</b><span><span class="stars">{stars(b.rating)}</span><br/>{b.rating_count} Google reviews{b.price_level ? `, ${price(b.price_level)}` : ""}</span></div>}
+    {b.description && <p style="font-size:1.08rem">{b.description}</p>}
+    {b.category === "churches" && <div class="notice"><b>Service times:</b> {b.service_times ?? "Not listed yet."}{b.kids_ministry ? " Nursery or kids program available." : ""}{b.languages ? ` Languages: ${b.languages}.` : ""} <a href={`/${town.slug}/faith/update?c=${b.slug}`}>{b.service_times ? "Update" : "Add service times"}</a></div>}
+    <dl class="facts">
+      {b.address && <><dt>Address</dt><dd><a href={maps} target="_blank" rel="noopener">{b.address}</a></dd></>}
+      {b.phone && <><dt>Phone</dt><dd><a href={`tel:${b.phone}`}>{fmtPhone(b.phone)}</a></dd></>}
+      {b.website && <><dt>Website</dt><dd><a href={b.website} target="_blank" rel="noopener nofollow">{b.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</a></dd></>}
+      {b.hours && <><dt>Hours</dt><dd style="white-space:pre-line">{Array.isArray(b.hours) ? b.hours.join("\n") : String(b.hours).replace(/^"|"$/g, "")}</dd></>}
+    </dl>
+    <Map pins={[{ lat: b.lat, lng: b.lng, name: b.name, href: maps }]} height="16rem" />
+    <p><a class="btn" href={maps} target="_blank" rel="noopener">Get directions</a> {b.phone && <a class="btn ghost" href={`tel:${b.phone}`}>Call</a>}</p>
+
+    {(news ?? []).length > 0 && <><h3 class="group">In the news</h3><ul class="plain">{news!.map((n: any) => <li><a href={`/${town.slug}/s/${n.id}`}>{n.title}</a><small>{new Date(n.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" })}</small></li>)}</ul></>}
+    {nearby.length > 0 && <><h3 class="group">Nearby {cat?.name ? cat.name.toLowerCase() : "places"}</h3>{nearby.map((x: any) => <BizRow b={x} i={null} {town} />)}</>}
+    <div class="notice" style="margin-top:2rem"><b>Is this your business?</b> Add your website, photo and phone free. <a href={`/${town.slug}/biz/update?b=${b.slug}`}>Update this listing</a>. Want to be first in your category? <a href="/advertise">Get featured</a>.</div>
+  </Page>
+</Base>

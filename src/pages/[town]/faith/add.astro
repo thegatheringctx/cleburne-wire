@@ -1,0 +1,21 @@
+---
+import Base from "../../../layouts/Base.astro";
+import Page from "../../../components/Page.astro";
+import { getTown } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+Astro.response.headers.set("Cache-Control", "private, no-store");
+---
+<Base title={`Add your church — ${town.name} Wire`} {town}>
+  <Page {town} title="Add your church" dek={`Free for every congregation in ${town.name}. Your listing goes live right away, alphabetical with everyone else.`} rail={false}>
+    <form class="card" method="post" action="/api/church-add">
+      <input type="hidden" name="town" value={town.slug} />
+      <label>Church name<input name="name" required maxlength="80" /></label>
+      <label>Address where you meet<input name="address" required maxlength="160" placeholder={`123 Main St., ${town.name}, TX`} /></label>
+      <label>Service times (optional)<textarea name="service_times" rows="2" maxlength="300" placeholder="Sunday 10:30 a.m."></textarea></label>
+      <label>Website (optional)<input name="website" maxlength="200" placeholder="https://" /></label>
+      <label>Your email (not shown publicly)<input type="email" name="email" required maxlength="200" /></label>
+      <input name="company" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true" />
+      <button class="btn">Add our church</button>
+    </form>
+  </Page>
+</Base>

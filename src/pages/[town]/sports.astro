@@ -1,0 +1,87 @@
+---
+import Base from "../../layouts/Base.astro";
+import Page from "../../components/Page.astro";
+import { getAds, getTown, getAlerts, sb, fmtTime, radioLive } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const now = Date.now();
+const [alerts, live, { data: teams }, { data: games }, { data: news }, { data: rr }, { data: leagues }] = await Promise.all([
+  getAlerts(town.id), radioLive(town.radio_mixlr),
+  sb.from("teams").select("*").eq("town_id", town.id).eq("active", true).order("sort"),
+  sb.from("games").select("*, teams(school,mascot,is_home_town)").gte("starts_at", new Date(now - 60 * 864e5).toISOString()).lte("starts_at", new Date(now + 60 * 864e5).toISOString()).order("starts_at"),
+  sb.from("stories").select("id,title,summary,source_name,published_at").eq("status","published").eq("category","sports").is("event_at", null).not("title","ilike","%railroaders%").gte("published_at", new Date(now - 14 * 864e5).toISOString()).order("published_at",{ascending:false}).limit(10),
+  sb.from("stories").select("id,title,source_name,published_at").eq("status","published").or("title.ilike.%railroaders%,summary.ilike.%railroaders%,title.ilike.%la moderna field%").gte("published_at", new Date(now - 150 * 864e5).toISOString()).order("published_at",{ascending:false}).limit(6),
+  sb.from("leagues").select("*").eq("town_id", town.id).eq("active", true).order("sort"),
+]);
+// County-vs-county games appear once per team; keep one copy (the home-town team's view first, then the home team's)
+const seenGame = new Set<string>();
+const all = (games ?? []).filter((g: any) => g.teams)
+  .sort((a: any, b: any) => (b.teams.is_home_town ? 1 : 0) - (a.teams.is_home_town ? 1 : 0) || (b.home ? 1 : 0) - (a.home ? 1 : 0))
+  .filter((g: any) => { const k = [g.sport, g.starts_at.slice(0, 10), ...[g.teams.school, g.opponent].map((x: string) => x.toLowerCase().replace(/\s*\(.*\)/, "")).sort()].join("|"); if (seenGame.has(k)) return false; seenGame.add(k); return true; })
+  .sort((a: any, b: any) => +new Date(a.starts_at) - +new Date(b.starts_at));
+const home = (teams ?? []).find((t: any) => t.is_home_town);
+const hg = all.filter((g: any) => g.team_id === home?.id && g.sport === "football");
+const wins = hg.filter((g) => g.result === "W").length, losses = hg.filter((g) => g.result === "L").length;
+const next = hg.find((g) => !g.result && new Date(g.starts_at).getTime() > now - 3 * 36e5);
+const last = [...hg].reverse().find((g) => g.result);
+// Scoreboard: every county football result from the most recent game night
+const finals = all.filter((g) => g.sport === "football" && g.result);
+const lastNight = finals.length ? new Date(Math.max(...finals.map((g) => +new Date(g.starts_at)))) : null;
+const board = lastNight ? finals.filter((g) => Math.abs(+new Date(g.starts_at) - +lastNight) < 2 * 864e5) : [];
+// This week: upcoming games across the county, one line per game
+const week = all.filter((g) => !g.result && +new Date(g.starts_at) > now - 3 * 36e5 && +new Date(g.starts_at) < now + 8 * 864e5);
+const byDay = week.reduce((m: Record<string, any[]>, g: any) => { const k = new Date(g.starts_at).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "short", day: "numeric" }); (m[k] ??= []).push(g); return m; }, {});
+const vb = all.filter((g) => g.team_id === home?.id && g.sport === "volleyball" && g.result).slice(-6).reverse();
+const d = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", ...o });
+const listen = town.radio_mixlr ? `https://mixlr.com/${town.radio_mixlr}` : null;
+const hs = (g: any) => g.teams.is_home_town;
+const presented = await getAds(town.id, "category-sponsor", "sports");
+Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
+---
+<Base title={`${town.name} sports: Yellow Jackets scores, schedule and live radio`} {town} {alerts} desc={`${home ? `${home.school} ${home.mascot}` : town.name} scores, schedule and live radio, football and volleyball.`}>
+  <Page {town} title="Sports" dek={`${town.name} High School scores, schedules and live radio, updated hourly and every 15 minutes on Friday nights.`}>
+    {presented && <a class="presented-by" href={`/go/${presented.id}`} rel="sponsored"><span>Presented by</span><b>{presented.headline}</b></a>}
+    {live && listen && <a class="live-strip" href={listen} target="_blank" rel="noopener"><span class="live-dot" aria-hidden="true"></span>{town.radio_name} is live now. Listen to the {home?.mascot}</a>}
+
+    {home && <section class="team-card">
+      <div class="tc-head"><div><span class="tc-kicker">{home.school} football</span><h2>{home.mascot}</h2></div><div class="tc-rec"><b>{wins}-{losses}</b><span>season</span></div></div>
+      <div class="tc-grid">
+        {next && <div><span class="tc-label">Next game</span><b>{next.home ? "vs" : "at"} {next.opponent}</b><span>{d(next.starts_at,{weekday:"long",month:"short",day:"numeric"})}, {d(next.starts_at,{hour:"numeric",minute:"2-digit"})}{next.district ? ", district" : ""}</span>{listen && <a href={listen} target="_blank" rel="noopener">Listen live on {town.radio_name}</a>}</div>}
+        {last && <div><span class="tc-label">Last game</span><b class={last.result === "W" ? "w" : "l"}>{last.result} {last.us}-{last.them}</b><span>{last.home ? "vs" : "at"} {last.opponent}, {d(last.starts_at,{month:"short",day:"numeric"})}</span></div>}
+      </div>
+    </section>}
+
+
+    <h3 class="group">This week</h3>
+    {Object.keys(byDay).length === 0 && <p class="empty">No games on the schedule for the next week.</p>}
+    {Object.entries(byDay).map(([day, list]) => <div class="wk"><div class="wk-day">{day}</div>
+      <ul class="plain">{(list as any[]).map((g) => <li class={hs(g) ? "mine" : ""}><b>{g.sport === "football" ? "Football" : "Volleyball"} {g.home ? "vs" : "at"} {g.opponent}</b><small>{d(g.starts_at,{hour:"numeric",minute:"2-digit"})}{hs(g) && g.sport === "football" && listen ? `, live on ${town.radio_name}` : ""}</small></li>)}</ul></div>)}
+
+    {hg.length > 0 && <><h3 class="group">{home!.school} football schedule</h3>
+      <ul class="scores">{hg.map((g) => <li class={g.result === "W" ? "win" : ""}>
+        <span class="wl">{g.result ?? d(g.starts_at,{month:"numeric",day:"numeric"})}</span>
+        <span class="opp">{g.home ? "vs" : "at"} {g.opponent}{g.district ? <small> district</small> : null}</span>
+        <span class="sc">{g.result ? `${g.us}-${g.them}` : d(g.starts_at,{hour:"numeric",minute:"2-digit"})}</span>
+        <time>{g.result ? d(g.starts_at,{month:"short",day:"numeric"}) : d(g.starts_at,{weekday:"short"})}</time>
+      </li>)}</ul></>}
+
+    {vb.length > 0 && <><h3 class="group">{home!.school} volleyball, latest</h3>
+      <ul class="scores">{vb.map((g) => <li class={g.result === "W" ? "win" : ""}><span class="wl">{g.result}</span><span class="opp">{g.home ? "vs" : "at"} {g.opponent}</span><span class="sc">{g.us != null ? `${g.us}-${g.them}` : ""}</span><time>{d(g.starts_at,{month:"short",day:"numeric"})}</time></li>)}</ul></>}
+
+
+    <h3 class="group">Cleburne Railroaders</h3>
+    <div class="rr">
+      <p>Cleburne's pro baseball team plays in the American Association at La Moderna Field, 1906 Brazzle Blvd. The regular season runs mid-May through Labor Day; every game streams free on aabaseball.tv.</p>
+      {(rr ?? []).length > 0 ? <ul class="plain">{rr!.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a><small>{s.source_name}, {fmtTime(s.published_at)}</small></li>)}</ul> : <p class="empty" style="padding:.4rem 0">Off-season. Railroaders news and ballpark events will show here as they're announced.</p>}
+    </div>
+
+    <h3 class="group">Youth sports</h3>
+    <p style="margin:.4rem 0 .8rem;color:var(--slate)">Cleburne's youth leagues. Coaches and parents: send scores, schedules and team photos and we'll share them here and in the morning email.</p>
+    <div class="util-grid">{(leagues ?? []).map((l) => <div class="util gold"><b>{l.name}</b>{l.sport && <span>{l.sport}{l.ages ? `, ${l.ages}` : ""}</span>}{l.url && <a href={l.url} target="_blank" rel="noopener">League website</a>}</div>)}</div>
+    <p><a class="btn" href="/submit?kind=tip">Send a score or team photo</a> <a class="btn ghost" href="mailto:news@cleburnewire.com?subject=Youth%20league%20listing">List your league</a></p>
+
+    {(news ?? []).length > 0 && <><h3 class="group">Sports news</h3>
+      <ul class="plain">{news!.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a><small>{s.source_name}, {fmtTime(s.published_at)}</small></li>)}</ul></>}
+
+    <p class="fix">Scores and schedules from MaxPreps. {town.radio_name && <>Live broadcasts by <a href={listen!} target="_blank" rel="noopener">{town.radio_name}</a>. </>}Coaches and boosters: send recaps and photos to <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a>.</p>
+  </Page>
+</Base>

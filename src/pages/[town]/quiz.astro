@@ -1,0 +1,28 @@
+---
+import Base from "../../layouts/Base.astro";
+import Page from "../../components/Page.astro";
+import { getTown, getAlerts, sb } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const [alerts, { data: quiz }] = await Promise.all([getAlerts(town.id), sb.from("quizzes").select("*").eq("town_id", town.id).order("week_of", { ascending: false }).limit(1).maybeSingle()]);
+Astro.response.headers.set("Cache-Control", "public, max-age=600, s-maxage=600");
+---
+<Base title={`${town.name} news quiz — ${town.name} Wire`} {town} {alerts} desc={`How well do you know what happened in ${town.name} this week? Five quick questions. A new quiz every Friday.`}>
+  <Page {town} title={quiz?.title ?? `The ${town.name} news quiz`} dek="Five quick questions about this week in Cleburne. New quiz every Friday.">
+    {!quiz ? <p class="empty">The first quiz posts Friday.</p> : <section class="qz" data-id={quiz.id} data-q={JSON.stringify(quiz.questions)} data-town={town.slug}>
+      <div class="qz-box"></div>
+      <script is:inline>
+        (function(){ var el=document.querySelector('.qz'); var Q=JSON.parse(el.dataset.q), i=0, score=0, box=el.querySelector('.qz-box'), town=el.dataset.town;
+          function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+          function q(){ var x=Q[i]; box.innerHTML='<div class="qz-prog">Question '+(i+1)+' of '+Q.length+'</div><h2>'+esc(x.q)+'</h2><div class="qz-opts">'+x.options.map(function(o,k){return '<button type="button" data-k="'+k+'">'+esc(o)+'</button>'}).join('')+'</div><p class="qz-why"></p>';
+            box.querySelectorAll('button').forEach(function(b){ b.onclick=function(){ var k=+b.dataset.k; box.querySelectorAll('button').forEach(function(bb){bb.disabled=true; if(+bb.dataset.k===x.answer) bb.classList.add('right');}); if(k===x.answer){score++;} else b.classList.add('wrong');
+              var w=box.querySelector('.qz-why'); w.innerHTML=esc(x.why||'')+(x.story_id?' <a href="/'+town+'/s/'+x.story_id+'">Read the story</a>':'')+'<br><button class="btn" type="button">'+(i<Q.length-1?'Next question':'See my score')+'</button>'; w.querySelector('button').onclick=function(){ i++; i<Q.length?q():done(); }; }; }); }
+          function done(){ var n=Q.length, msg=score===n?'Perfect. You really know Cleburne.':score>=n-1?'Sharp. Almost perfect.':score>=Math.ceil(n/2)?'Not bad at all.':'Now you know. See you Friday.'; var url=location.origin+location.pathname; var share='I got '+score+'/'+n+' on the Cleburne news quiz. Can you beat me? '+url;
+            box.innerHTML='<div class="qz-score"><b>'+score+'/'+n+'</b><span>'+msg+'</span></div><p class="qz-stat"></p><div class="share-row"><a class="sh fb" target="_blank" rel="noopener" href="https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url)+'&quote='+encodeURIComponent(share)+'">Share on Facebook</a><a class="sh" href="sms:?&body='+encodeURIComponent(share)+'">Text a friend</a><button class="sh" type="button" id="qc">Copy my score</button></div>';
+            box.querySelector('#qc').onclick=function(){navigator.clipboard.writeText(share);this.textContent='Copied'};
+            fetch('/api/play',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'quiz',quiz:el.dataset.id,score:score})}).then(function(r){return r.json()}).then(function(r){ if(r&&r.n) box.querySelector('.qz-stat').textContent=r.n+' '+(r.n===1?'person has':'people have')+' taken this week\'s quiz. Average score: '+r.avg+'. Perfect scores: '+r.perfect+'.'; }); }
+          q(); })();
+      </script>
+    </section>}
+    <div class="notice" style="margin-top:2rem"><b>Get the quiz in your inbox.</b> It's in the Friday morning email. <a href="#join">Subscribe free</a>.</div>
+  </Page>
+</Base>

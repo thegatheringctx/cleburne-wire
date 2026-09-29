@@ -1,0 +1,27 @@
+---
+import Base from "../layouts/Base.astro";
+import { sb } from "../lib/db";
+const code = /^[0-9a-f]{8}$/.test(Astro.url.searchParams.get("c") ?? "") ? Astro.url.searchParams.get("c") : null;
+const count = code ? ((await sb.rpc("referral_count", { p_code: code })).data ?? 0) : 0;
+const link = code ? `https://cleburnewire.com/r/${code}` : "https://cleburnewire.com";
+const msg = `I get Cleburne's news every morning from Cleburne Wire. Free, 5 minutes: ${link}`;
+Astro.response.headers.set("Cache-Control", "private, no-store");
+---
+<Base title="You're in. Welcome to Cleburne Wire">
+  <header class="page-head"><h1>You're in.</h1><p class="dek">Your first morning email arrives at 7 on the next weekday. Check your promotions tab if you don't see it, and move it to your inbox.</p></header>
+  <div class="single">
+    <section class="refer-box">
+      <h2>Know someone who'd want this?</h2>
+      <p>Cleburne Wire grows one neighbor at a time, and every neighbor you bring helps keep it free. Share your personal link below; we count everyone who joins with it.</p>
+      <div class="ref-link"><input readonly value={link} aria-label="Your share link" onclick="this.select()" /><button class="btn" type="button" onclick={`navigator.clipboard.writeText('${link}');this.textContent='Copied'`}>Copy</button></div>
+      <div class="share-row">
+        <a class="sh fb" href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`} target="_blank" rel="noopener">Share on Facebook</a>
+        <a class="sh" href={`sms:?&body=${encodeURIComponent(msg)}`}>Text a friend</a>
+        <a class="sh" href={`mailto:?subject=${encodeURIComponent("You'd like this")}&body=${encodeURIComponent(msg)}`}>Email</a>
+      </div>
+      {code && <p class="fix">{count === 0 ? "No one has joined with your link yet." : `${count} ${count === 1 ? "neighbor has" : "neighbors have"} joined with your link. Thank you.`} Your link is also at the bottom of every morning email.</p>}
+    </section>
+    <p><a class="btn ghost" href="/cleburne">Back to today's news</a></p>
+  </div>
+  <script is:inline>try{localStorage.setItem("cw_sub","1")}catch(e){}</script>
+</Base>

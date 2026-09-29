@@ -1,0 +1,151 @@
+---
+import Base from "../../layouts/Base.astro";
+import Feed from "../../components/Feed.astro";
+import SubscribeBand from "../../components/SubscribeBand.astro";
+import HouseAd from "../../components/HouseAd.astro";
+import HOMETOWN from "../../lib/hometown.json";
+import { getTown, getFeed, getAlerts, getCategories, getBusinesses, sb, fmtTime, radioLive, forecast, niceTitle } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const now = new Date(); const wkEnd = new Date(now.getTime() + 7 * 864e5);
+const FN = import.meta.env.PUBLIC_SUPABASE_URL + "/functions/v1";
+const [stories, alerts, cats, eventsRes, wxRes, picks, obits] = await Promise.all([
+  getFeed(town.id, undefined, 45), getAlerts(town.id), getCategories(),
+  sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").gte("event_at", now.toISOString()).lte("event_at", wkEnd.toISOString()).order("event_at").limit(40),
+  sb.from("stories").select("title,summary").eq("category","weather").ilike("title", `${town.name} weather%`).order("published_at", { ascending: false }).limit(1).maybeSingle(),
+  getBusinesses(town.id, undefined, 400),
+  getFeed(town.id, "obituaries", 6),
+]);
+const [live, fc] = await Promise.all([radioLive(town.radio_mixlr), forecast(town)]);
+const next3 = fc.filter((p: any) => p.isDaytime).slice(0, 3);
+const [{ data: hgames }, { data: nextMeet }, { count: bizCount }] = await Promise.all([
+  sb.from("games").select("starts_at,opponent,home,result,sport,teams!inner(is_home_town,town_id)").eq("teams.is_home_town", true).eq("teams.town_id", town.id).eq("sport","football").order("starts_at"),
+  sb.from("stories").select("id,title,event_at").eq("status","published").in("category",["government","schools"]).contains("tags",["agenda"]).gte("event_at", now.toISOString()).order("event_at").limit(1).maybeSingle(),
+  sb.from("businesses").select("id", { count: "exact", head: true }).eq("town_id", town.id).eq("active", true),
+]);
+const hg = hgames ?? []; const W = hg.filter((g) => g.result === "W").length, L = hg.filter((g) => g.result === "L").length;
+const ng = hg.find((g) => !g.result && +new Date(g.starts_at) > Date.now() - 3 * 36e5);
+const [{ data: qz }, { data: topPhoto }] = await Promise.all([
+  sb.from("quizzes").select("title").eq("town_id", town.id).order("week_of", { ascending: false }).limit(1).maybeSingle(),
+  sb.from("reader_photos").select("path,caption").eq("town_id", town.id).eq("status", "approved").order("week_of", { ascending: false }).order("votes", { ascending: false }).limit(1).maybeSingle(),
+]);
+const { data: following } = await sb.from("storylines").select("slug,title").eq("town_id", town.id).eq("status", "active").order("updated_at", { ascending: false }).limit(6);
+const doy = Math.floor((Date.now() - Date.UTC(new Date().getUTCFullYear(), 0, 0)) / 864e5);
+const photo = HOMETOWN[doy % HOMETOWN.length];
+const greet = (() => { const h = Number(new Date().toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "America/Chicago" })); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; })();
+const { data: civic } = await sb.from("explainers").select("slug,title,dek").eq("town_id", town.id).eq("active", true).gte("featured_until", now.toISOString().slice(0,10)).order("featured_until").limit(1).maybeSingle();
+// Events: one per title so recurring lap swims don't flood the list
+const seen = new Set<string>();
+const events = (eventsRes.data ?? []).filter((e) => { const k = e.title.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
+const wx = wxRes.data;
+const news = stories.filter((s) => !["events","obituaries","weather"].includes(s.category));
+const fresh = news.filter((s) => Date.now() - +new Date(s.published_at) < 2.5 * 864e5);
+const pool = fresh.length >= 3 ? fresh : news;
+const lead = [...pool].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || +new Date(b.published_at) - +new Date(a.published_at)).find((s) => s.image_url) ?? pool[0];
+const rest0 = news.filter((s) => s.id !== lead?.id);
+const top6 = [...rest0].sort((a, b) => ((b.score ?? 0) - (a.score ?? 0)) || (+new Date(b.published_at) - +new Date(a.published_at))).slice(0, 6);
+const trio: any[] = [];
+const used = new Set([lead?.id, ...trio.map((t) => t.id)]);
+const rest = news.filter((x) => x.id !== lead?.id && !top6.some((t) => t.id === x.id)).slice(0, 18);
+const favs = picks.filter((b) => b.image_url && b.rating >= 4.4).sort(() => Math.random() - 0.5).slice(0, 4);
+const temp = wx?.title?.match(/high (\d+)/)?.[1];
+const cond = wx?.title?.replace(/^.*?: /, "").replace(/, high \d+°$/, "");
+const today = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Chicago" });
+const d = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(iso).toLocaleDateString("en-US", { timeZone: "America/Chicago", ...o });
+const cleanObit = (t: string) => t.replace(/\s*\bobituary\b:?\s*/ig, " ").replace(/\s*[-—]\s*$/, "").replace(/\s{2,}/g, " ").trim();
+Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
+---
+<Base title={`${town.name} Wire — what's happening in ${town.name}, TX today`} {town} {alerts}>
+  {live && <a class="live-strip" href={`https://mixlr.com/${town.radio_mixlr}`} target="_blank" rel="noopener"><span class="live-dot" aria-hidden="true"></span>{town.radio_name} is live now. Listen to the {town.team_name}</a>}
+  <nav class="cats" aria-label="Sections"><a href={`/${town.slug}`} aria-current="page">Top stories</a>
+    {cats.filter((c) => ["news","crime","government","schools","sports","events","business","obituaries"].includes(c.slug)).map((c) => <a href={`/${town.slug}/${c.slug}`}>{c.name}</a>)}</nav>
+  <section class="hometown" style={`--bg:url('${photo.file}');--pos:${photo.pos}`}>
+    <div class="ht-inner">
+      <h1 class="ht-hello">{greet}, {town.name}.<span class="sr-only"> Today's news, weather and events in {town.name}, Texas.</span></h1>
+      <p class="ht-date"><b>{today}</b>{temp && <span class="ht-temp">{temp}°</span>}{cond && <span>{cond.toLowerCase()}</span>}</p>
+      {next3.length > 0 && <a class="ht-fc" href={`/${town.slug}/weather`} aria-label="7-day forecast">{next3.map((p: any) => <span><b>{p.name.replace("This Afternoon","Today")}</b> {p.temperature}°{p.probabilityOfPrecipitation?.value >= 30 ? <em> {p.probabilityOfPrecipitation.value}% rain</em> : null}</span>)}</a>}
+      <nav class="ht-links" aria-label="Quick links"><a href={`/${town.slug}/weekend`}>This weekend</a><a href={`/${town.slug}/meetings`}>Public meetings</a><a href={`/${town.slug}/sports`}>Sports</a><a href={`/${town.slug}/roads`}>Roads and outages</a></nav>
+    </div>
+    <a class="ht-credit" href={photo.url} target="_blank" rel="noopener">{photo.label}. Photo: {photo.credit}, {photo.license}</a>
+  </section>
+
+
+  {lead && (lead.image_url ? <section class="lead-block">
+    <a href={`/${town.slug}/s/${lead.id}`}><img referrerpolicy="no-referrer" src={lead.image_url} alt="" onerror={`this.onerror=null;this.src="${FN}/card?id=${lead.id}"`} /></a>
+    <div>
+      <div class={`kicker c-${lead.category}`}><span style="text-transform:capitalize">{lead.category.replace("-"," ")}</span><time>{fmtTime(lead.published_at)}</time></div>
+      <h2><a href={`/${town.slug}/s/${lead.id}`}>{lead.title}</a></h2>
+      {lead.summary && <p>{lead.summary}</p>}
+    </div>
+  </section> : <a class="lead-text" href={`/${town.slug}/s/${lead.id}`}>
+      <div class={`kicker c-${lead.category}`}><span style="text-transform:capitalize">{lead.category.replace("-"," ")}</span><time>{fmtTime(lead.published_at)}</time></div>
+      <h2>{lead.title}</h2>
+      {lead.summary && <p>{lead.summary}</p>}
+      <span class="go">Read the story</span>
+  </a>)}
+
+
+
+
+  {(following ?? []).length > 0 && <nav class="following" aria-label="Stories we're following"><span>Following</span>{following!.map((f) => <a href={`/${town.slug}/follow/${f.slug}`}>{f.title}</a>)}<a class="all" href={`/${town.slug}/follow`}>All</a></nav>}
+  {civic && <a class="civic-banner" href={`/${town.slug}/explain/${civic.slug}`}><b>{civic.title}</b><span>What it builds, what it costs you, and how to vote.</span><span class="go">Read the voter guide</span></a>}
+
+
+
+
+
+  {top6.length > 0 && <section class="today-list">
+    <div class="sec"><h3>Today in {town.name}</h3><a href={`/${town.slug}/news`}>All news</a></div>
+    <ol>{top6.map((t) => <li><a href={`/${town.slug}/s/${t.id}`}>
+      {t.image_url ? <img referrerpolicy="no-referrer" src={t.image_url} alt="" loading="lazy" onerror="this.onerror=null;this.remove()" /> : <span class={`tl-ic c-${t.category}`}></span>}
+      <span class="tl-t"><small class={`c-${t.category}`}>{t.category.replace("-", " ")}</small>{niceTitle(t.title)}</span></a></li>)}</ol>
+  </section>}
+  {events.length > 0 && <section class="week-strip only-phone">
+    <div class="sec"><h3>This week</h3><a href={`/${town.slug}/events`}>Calendar</a></div>
+    <ul>{events.slice(0, 4).map((e) => <li><a href={`/${town.slug}/s/${e.id}`}><b>{d(e.event_at,{weekday:"short"})} {d(e.event_at,{day:"numeric"})}</b><span>{e.title}</span></a></li>)}</ul>
+  </section>}
+
+  <SubscribeBand {town} />
+  <section class="play">
+    <h3 class="explore-h">Play along</h3>
+    <div class="play-grid">
+      <a class="pl pl-pick" href={`/${town.slug}/pickem`}><span>Pick'em</span><b>{ng ? `Call the score: ${ng.home ? "vs" : "at"} ${ng.opponent}` : `${town.team_name ?? "Football"} Pick'em`}</b><small>Season leaderboard. Picks close at kickoff.</small></a>
+      <a class="pl pl-quiz" href={`/${town.slug}/quiz`}><span>Weekly quiz</span><b>{qz?.title ?? `The ${town.name} news quiz`}</b><small>Five questions. How well do you know this week?</small></a>
+      <a class="pl pl-photo" href={`/${town.slug}/photos`} style={topPhoto ? `--bg:url('${import.meta.env.PUBLIC_SUPABASE_URL}/storage/v1/object/public/reader-photos/${topPhoto.path}')` : ""}><span>Photo of the week</span><b>{topPhoto?.caption ?? "Share your best shot of Cleburne"}</b><small>Submit a photo or vote for your favorite.</small></a>
+    </div>
+  </section>
+
+  <div class="columns">
+    <section>
+      <div class="sec"><h3>More news</h3><a href={`/${town.slug}/news`}>All local news</a></div>
+      <Feed stories={rest} {town} />
+    </section>
+
+    <aside class="rail">
+      {events.length > 0 && <section>
+        <h3>Coming up</h3>
+        <ul>{events.map((e) => <li class="when"><div class="d"><span>{d(e.event_at,{weekday:"short"})}</span><b>{d(e.event_at,{day:"numeric"})}</b></div><div><a href={`/${town.slug}/s/${e.id}`}>{e.title}</a>{e.location && <small>{e.location.split(",")[0]}</small>}</div></li>)}</ul>
+        <p style="margin:.8rem 0 0"><a href={`/${town.slug}/events`} style="font-weight:700;color:var(--navy-2)">Full calendar</a></p>
+      </section>}
+
+      <section class="join">
+        <h3>The morning email</h3>
+        <p>{town.name} news and weather in your inbox at 7, every weekday.</p>
+        <form method="post" action="/api/subscribe"><input type="hidden" name="town" value={town.slug} /><input type="email" name="email" placeholder="Your email" required aria-label="Email address" /><button class="btn">Subscribe</button></form>
+      </section>
+
+      <HouseAd {town} variant="rail" />
+
+      {obits.length > 0 && <section>
+        <h3>Obituaries</h3>
+        <ul>{obits.map((o) => <li><a href={o.source_url ?? `/${town.slug}/s/${o.id}`} rel="nofollow noopener" target="_blank">{cleanObit(o.title)}</a><small>{d(o.published_at,{month:"short",day:"numeric"})}</small></li>)}</ul>
+        <p style="margin:.8rem 0 0"><a href={`/${town.slug}/obituaries`} style="font-weight:700;color:var(--navy-2)">All obituaries</a></p>
+      </section>}
+
+      {favs.length > 0 && <section>
+        <h3>Local favorites</h3>
+        <ul>{favs.map((b) => <li><a href={`/${town.slug}/biz/${b.slug}`}>{b.name}</a><small>{b.rating} stars, {b.category.replace("-"," ")}</small></li>)}</ul>
+        <p style="margin:.8rem 0 0"><a href={`/${town.slug}/guide`} style="font-weight:700;color:var(--navy-2)">Browse the guide</a></p>
+      </section>}
+    </aside>
+  </div>
+</Base>

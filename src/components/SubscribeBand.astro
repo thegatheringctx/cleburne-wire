@@ -1,0 +1,11 @@
+---
+const { town } = Astro.props;
+const name = town?.name ?? "Cleburne"; const slug = town?.slug ?? "cleburne";
+---
+<section class="sub-band">
+  <div>
+    <b>Get {name} in your inbox</b>
+    <span>The day's news, weather and events at 7 every weekday. Free.</span>
+  </div>
+  <form method="post" action="/api/subscribe"><input type="hidden" name="town" value={slug} /><input type="email" name="email" placeholder="Your email" required aria-label="Email address" /><button class="btn">Subscribe</button></form>
+</section>

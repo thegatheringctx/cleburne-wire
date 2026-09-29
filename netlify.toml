@@ -1,3 +1,10 @@
 [build]
   command = "npm run build"
   publish = "dist"
+
+# canonical domain: send the netlify.app address to cleburnewire.com
+[[redirects]]
+  from = "https://cleburne-wire.netlify.app/*"
+  to = "https://cleburnewire.com/:splat"
+  status = 301
+  force = true

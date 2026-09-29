@@ -1,0 +1,30 @@
+---
+import Base from "../../layouts/Base.astro";
+import Page from "../../components/Page.astro";
+import { getTown, getAlerts, getFeed, fmtTime } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const [alerts, roads, weather] = await Promise.all([getAlerts(town.id), getFeed(town.id, "roads", 15), getFeed(town.id, "weather", 10)]);
+const wxAlerts = weather.filter((s) => !/ weather \d{4}-\d{2}-\d{2}:/.test(s.title));
+const forecast = weather.find((s) => / weather \d{4}-\d{2}-\d{2}:/.test(s.title));
+Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
+---
+<Base title={`${town.name} roads, outages and alerts`} {town} {alerts} desc={`Road closures, weather alerts, power and gas outage links, and who to call in ${town.name}, TX.`}>
+  <Page {town} title="Roads, outages and alerts" dek={`What's closed, what's out, and who to call in ${town.name}. Alerts update every 15 minutes.`}>
+    {wxAlerts.length > 0 ? <><h3 class="group">Active alerts</h3><ul class="plain">{wxAlerts.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a><small>{fmtTime(s.published_at)}</small></li>)}</ul></>
+      : <div class="notice"><b>No active weather alerts</b> for {town.name} right now.{forecast && <> Today: {forecast.title.replace(/^.*?: /, "")}.</>}</div>}
+
+    <h3 class="group">Check it live</h3>
+    <div class="util-grid">
+      <div class="util alert"><b>Power outage</b><span>Report it and see the outage map.</span><a href="https://stormcenter.oncor.com" target="_blank" rel="noopener">Oncor outage map</a><span>Oncor: 888-313-4747</span></div>
+      <div class="util alert"><b>Smell gas?</b><span>Leave first, then call from outside.</span><span><b style="font-size:1rem">Atmos Energy: 866-322-8667</b></span><span>Then 911.</span></div>
+      <div class="util"><b>Road closures</b><span>State highways, construction and crashes.</span><a href="https://drivetexas.org" target="_blank" rel="noopener">DriveTexas map</a></div>
+      <div class="util"><b>Water, streets, trash</b><span>Main breaks, boil notices, potholes, missed pickup.</span><a href="https://www.cleburne.net" target="_blank" rel="noopener">City of Cleburne</a><span>City Hall: 817-645-0908</span></div>
+      <div class="util gold"><b>Get alerts first</b><span>Weather and closures in the 7am email.</span><a href="#join">Subscribe free</a></div>
+    </div>
+
+    <h3 class="group">Roads and traffic news <a href={`/${town.slug}/news`}>All news</a></h3>
+    {roads.length === 0 && <p class="empty">No closures or crashes reported right now.</p>}
+    <ul class="plain">{roads.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a><small>{s.source_name}, {fmtTime(s.published_at)}</small></li>)}</ul>
+    <p class="fix">Emergencies: call 911. Something closed that we don't have? <a href="/submit">Tell us</a>.</p>
+  </Page>
+</Base>

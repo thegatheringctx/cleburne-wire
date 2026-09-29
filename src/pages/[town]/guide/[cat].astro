@@ -1,0 +1,22 @@
+---
+import Page from "../../../components/Page.astro";
+import Map from "../../../components/Map.astro";
+import Base from "../../../layouts/Base.astro";
+import BizRow from "../../../components/BizRow.astro";
+import { getTown, getAlerts, getDirCategories, getBusinesses, getAds, stars, price } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const cats = await getDirCategories(); const cat = cats.find((c) => c.slug === Astro.params.cat);
+if (!cat) return Astro.redirect(`/${town.slug}/guide`);
+const [alerts, list, ad] = await Promise.all([getAlerts(town.id), getBusinesses(town.id, cat.slug), getAds(town.id, "sidebar")]);
+const title = cat.group_name === "Eat & Drink" ? `Best ${cat.name} in ${town.name}, TX` : `${cat.name} in ${town.name}, TX`;
+Astro.response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600");
+---
+<Base title={`${title} — ${town.name} Wire`} {town} {alerts} desc={`${list.length} ${cat.name.toLowerCase()} in ${town.name}, ranked by rating and review count. Hours, phone, and directions for each.`}>
+  <Page {town} {title} dek={`${list.length} listings, ranked by rating and number of reviews. Featured listings are paid and marked.`} crumbs={[{ label: "Guide", href: `/${town.slug}/guide` }, { label: cat.group_name, href: `/${town.slug}/guide` }]}>
+    {ad && <a class="sponsor" href={`/go/${ad.id}`} rel="sponsored"><small>Sponsored</small><b>{ad.headline}</b>{ad.body}</a>}
+    <Map pins={list.slice(0, 40).map((b, i) => ({ lat: b.lat, lng: b.lng, name: b.name, href: `/${town.slug}/biz/${b.slug}`, n: i + 1 }))} />
+    {list.length === 0 && <p class="empty">No listings yet in this category. <a href="/submit">Add a business</a>.</p>}
+    {list.map((b, i) => <BizRow {b} {i} {town} />)}
+    <div class="notice" style="margin-top:2rem"><b>Want the top spot in {cat.name}?</b> Featured listings start at $30 a month. <a href="/advertise">See options</a></div>
+  </Page>
+</Base>

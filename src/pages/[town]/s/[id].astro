@@ -1,0 +1,74 @@
+---
+import Rail from "../../../components/Rail.astro";
+import Base from "../../../layouts/Base.astro";
+import SubscribeBand from "../../../components/SubscribeBand.astro";
+import HouseAd from "../../../components/HouseAd.astro";
+import { niceTitle, getTown, getAlerts, getAds, sb, fmtTime } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const { data: s } = await sb.from("stories").select("*").eq("id", Astro.params.id!).eq("status", "published").maybeSingle();
+if (!s) return Astro.rewrite("/404");
+const [alerts, ad] = await Promise.all([getAlerts(town.id), getAds(town.id, "sidebar")]);
+
+
+const { data: moreRows } = await sb.from("stories").select("id,title,published_at").eq("status","published").eq("category", s.category).neq("id", s.id).is("event_at", null).order("published_at",{ascending:false}).limit(6);
+const more = moreRows ?? [];
+const { data: slLink } = await sb.from("storyline_stories").select("storylines(slug,title,summary,status)").eq("story_id", s.id).limit(1).maybeSingle();
+const storyline = (slLink as any)?.storylines?.status === "active" ? (slLink as any).storylines : null;
+---
+<Base title={`${s.title} — ${town.name} Wire`} {town} {alerts} desc={s.summary ?? s.title} image={`${import.meta.env.PUBLIC_SUPABASE_URL}/functions/v1/card?id=${s.id}`}>
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org", "@type": "NewsArticle",
+    "headline": s.title, "description": s.summary ?? s.title,
+    "datePublished": s.published_at, "dateModified": s.published_at,
+    "image": s.image_url ? [s.image_url] : undefined,
+    "publisher": { "@type": "NewsMediaOrganization", "name": "Cleburne Wire", "logo": { "@type": "ImageObject", "url": "https://cleburnewire.com/favicon.svg" } },
+    "mainEntityOfPage": { "@type": "WebPage", "@id": `https://cleburnewire.com/${town.slug}/s/${s.id}` },
+    ...(s.source_url ? { "isBasedOn": s.source_url } : {}),
+  })} />
+  {s.event_at && <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org", "@type": "Event", "name": s.title, "startDate": s.event_at, "description": s.summary ?? s.title,
+    "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode", "eventStatus": "https://schema.org/EventScheduled",
+    "location": { "@type": "Place", "name": (s.location ?? town.name).split(",")[0], "address": { "@type": "PostalAddress", "streetAddress": s.location ?? "", "addressLocality": town.name, "addressRegion": "TX", "addressCountry": "US" } },
+    "url": `https://cleburnewire.com/${town.slug}/s/${s.id}`,
+  })} />}
+  <header class="story-top">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href={`/${town.slug}`}>{town.name}</a><a href={`/${town.slug}/${s.category}`} style="text-transform:capitalize">{s.category.replace("-"," ")}</a></nav>
+    <h1>{niceTitle(s.title)}</h1>
+    {s.summary && <p class="dek">{s.summary}</p>}
+    <div class="byline"><span>By <b>{town.name} Wire</b></span><time>{fmtTime(s.published_at)}</time>{s.source_name && <span>Source: {s.source_name}</span>}</div>
+  </header>
+  <div class="columns">
+    <div class="main story-body">
+      {s.image_url && <img referrerpolicy="no-referrer" class="hero-img" src={s.image_url} alt="" onerror="this.onerror=null;this.remove()" />}
+      {storyline && <a class="follow-box" href={`/${town.slug}/follow/${storyline.slug}`}><span>Part of an ongoing story</span><b>{storyline.title}</b><small>Catch up: what to know and the full timeline</small></a>}
+      {s.body && <div class="body">{s.body}</div>}
+      {s.event_at && <dl class="facts"><dt>When</dt><dd>{fmtTime(s.event_at)}</dd>{s.location && <><dt>Where</dt><dd><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.location + (/, ?TX/i.test(s.location) ? "" : `, ${town.name}, TX`))}`} target="_blank" rel="noopener">{s.location}</a></dd></>}</dl>}
+      {s.source_url && <div class="source-box"><p>{s.body ? "This brief is based on reporting from" : "The full story is from"} <b>{s.source_name ?? "the original source"}</b>.</p><a class="btn" href={s.source_url} rel="nofollow noopener" target="_blank">Read the original</a></div>}
+      <div class="share-row" aria-label="Share this story">
+        <a class="sh fb" href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`https://cleburnewire.com/${town.slug}/s/${s.id}`)}`} target="_blank" rel="noopener">Share on Facebook</a>
+        <a class="sh" href={`sms:?&body=${encodeURIComponent(`${s.title} https://cleburnewire.com/${town.slug}/s/${s.id}`)}`}>Text it</a>
+        <a class="sh" href={`mailto:?subject=${encodeURIComponent(s.title)}&body=${encodeURIComponent(`https://cleburnewire.com/${town.slug}/s/${s.id}`)}`}>Email</a>
+        <button class="sh" type="button" onclick="navigator.clipboard.writeText(location.href.split('?')[0]);this.textContent='Link copied'">Copy link</button>
+      </div>
+      <script is:inline define:vars={{ id: s.id }}>try{navigator.sendBeacon&&navigator.sendBeacon('/api/view/'+id)}catch(e){}</script>
+      <SubscribeBand {town} />
+      {more.length > 0 && <section class="more-list"><h3 class="group">More {s.category.replace("-"," ")} <a href={`/${town.slug}/${s.category}`}>See all</a></h3>
+        <ul class="plain">{more.map((m) => <li><a href={`/${town.slug}/s/${m.id}`}>{m.title}</a><small>{fmtTime(m.published_at)}</small></li>)}</ul></section>}
+      <p class="fix">Something wrong or missing in this story? <a href={`mailto:news@cleburnewire.com?subject=${encodeURIComponent("Correction: " + s.title)}`}>Tell us</a> and we'll fix it.</p>
+    </div>
+    <Rail {town} exclude={s.id} />
+  </div>
+  <div class="sub-pop" hidden>
+    <button class="sp-x" type="button" aria-label="Close">&times;</button>
+    <b>Get {town.name} news every morning</b><span>Free, at 7 every weekday. Unsubscribe anytime.</span>
+    <form method="post" action="/api/subscribe"><input type="hidden" name="town" value={town.slug} /><input type="email" name="email" required placeholder="Your email" aria-label="Email address" /><button class="btn">Subscribe</button></form>
+  </div>
+  <script is:inline>
+    (function(){ try{ var el=document.querySelector('.sub-pop'); if(!el) return; if(localStorage.getItem('cw_sub')) return; var d=+localStorage.getItem('cw_pop_x')||0; if(Date.now()-d<14*864e5) return;
+      var shown=false; function chk(){ if(shown) return; var h=document.documentElement; if((h.scrollTop+innerHeight)/h.scrollHeight>0.6){ shown=true; el.hidden=false; setTimeout(function(){el.classList.add('on')},20); } }
+      addEventListener('scroll',chk,{passive:true});
+      el.querySelector('.sp-x').onclick=function(){ el.hidden=true; localStorage.setItem('cw_pop_x',Date.now()); };
+      el.querySelector('form').addEventListener('submit',function(){ localStorage.setItem('cw_sub','1'); });
+    }catch(e){} })();
+  </script>
+</Base>

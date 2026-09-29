@@ -1,0 +1,14 @@
+---
+import { CAT_ICON, phone } from "../lib/db";
+const { b, i, town } = Astro.props;
+const bits = [b.address?.split(",")[0], phone(b.phone), b.subcategory ? String(b.subcategory).replace(/;/g, ", ").replace(/_/g, " ") : null].filter(Boolean);
+---
+<article class={`biz ${b.tier === "featured" ? "featured" : ""}`}>
+  <a class="rank" href={`/${town.slug}/biz/${b.slug}`}>{b.image_url ? <img referrerpolicy="no-referrer" class="thumb sq" src={b.image_url} alt="" loading="lazy" onerror="this.onerror=null;this.remove()" /> : <div class="ph thumb sq"><i style={`--ico:url(/icons/${CAT_ICON[b.category] ?? "ticket"}.svg)`}></i></div>}{i != null && <span class="n">{i + 1}</span>}</a>
+  <div><h2><a href={`/${town.slug}/biz/${b.slug}`}>{b.name}</a>{b.tier === "featured" && <span class="badge">Featured</span>}</h2>
+    <div class="sub">{bits.map((x) => <span>{x}</span>)}</div>
+    {b.description && <p style="margin:.3rem 0 0">{b.description}</p>}
+    {!b.image_url && <a class="add-photo" href={`/${town.slug}/biz/update?b=${b.slug}`}>Owner? Add your photo</a>}
+    {b.category === "real-estate" && <a class="homes-link" href={b.website ?? `https://www.google.com/search?q=${encodeURIComponent(b.name + " Cleburne TX homes for sale")}`} target="_blank" rel="noopener nofollow">Homes for sale</a>}</div>
+  <div class="rate">{b.rating != null ? <><b>{Number(b.rating).toFixed(1)}</b>{b.rating_count} reviews</> : <span style="color:var(--muted);font-size:.8rem">Listed</span>}</div>
+</article>

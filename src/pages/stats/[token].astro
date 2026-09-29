@@ -1,0 +1,28 @@
+---
+import Base from "../../layouts/Base.astro";
+import { sb } from "../../lib/db";
+const days = [1, 7, 30].includes(Number(Astro.url.searchParams.get("d"))) ? Number(Astro.url.searchParams.get("d")) : 7;
+const { data: st } = await sb.rpc("site_stats", { p_token: Astro.params.token, p_days: days });
+if (!st) return new Response("Not found", { status: 404 });
+const pct = (a: number, b: number) => (b ? `${a >= b ? "+" : ""}${Math.round(((a - b) / b) * 100)}%` : "new");
+const max = Math.max(1, ...(st.by_day ?? []).map((x: any) => x.v));
+const SRC: Record<string, string> = { facebook: "Facebook", google: "Google", search: "Other search", email: "Morning email", direct: "Direct / typed", other: "Other sites" };
+Astro.response.headers.set("Cache-Control", "private, no-store"); Astro.response.headers.set("X-Robots-Tag", "noindex");
+---
+<Base title="Cleburne Wire: site stats">
+  <header class="page-head"><h1>Site stats</h1><p class="dek">Private to you. Bookmark this page. <a href="?d=1">Today</a> | <a href="?d=7">7 days</a> | <a href="?d=30">30 days</a></p></header>
+  <div class="single" style="max-width:60rem">
+    <div class="util-grid">
+      <div class="util gold"><b style="font-size:2.4rem">{st.visitors.toLocaleString()}</b><span>readers, last {days === 1 ? "24 hours" : `${days} days`} ({pct(st.visitors, st.prev_visitors)})</span></div>
+      <div class="util gold"><b style="font-size:2.4rem">{st.views.toLocaleString()}</b><span>page views ({pct(st.views, st.prev_views)})</span></div>
+      <div class="util"><b style="font-size:2.4rem">{st.today.toLocaleString()}</b><span>page views today</span></div>
+      <div class="util"><b style="font-size:2.4rem">{st.subscribers.toLocaleString()}</b><span>email subscribers</span></div>
+    </div>
+    {days > 1 && <><h3 class="group">By day</h3><div class="st-bars">{(st.by_day ?? []).map((x: any) => <div><span style={`height:${Math.max(3, (x.v / max) * 100)}%`} title={`${x.v} views`}></span><small>{new Date(x.d + "T12:00:00Z").toLocaleDateString("en-US", { month: "numeric", day: "numeric", timeZone: "UTC" })}</small><b>{x.u}</b></div>)}</div><p class="fix">Bars are page views; the number under each day is readers.</p></>}
+    <h3 class="group">Where readers came from</h3>
+    <ul class="plain">{(st.sources ?? []).map((x: any) => <li><b>{SRC[x.s] ?? x.s}</b><small>{x.u} readers, {x.v} page views</small></li>)}</ul>
+    <h3 class="group">Top pages</h3>
+    <ul class="plain">{(st.pages ?? []).map((x: any) => <li><a href={x.p}>{x.p}</a><small>{x.v} views</small></li>)}</ul>
+    <p class="fix">Devices: {(st.devices ?? []).map((x: any) => `${x.dv || "unknown"} ${x.v}`).join(", ")}. Counts exclude this page and sponsor pages. No cookies are used; a reader is one browser.</p>
+  </div>
+</Base>

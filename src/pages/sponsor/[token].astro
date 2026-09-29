@@ -1,0 +1,28 @@
+---
+import Base from "../../layouts/Base.astro";
+import { sb } from "../../lib/db";
+const { data: st } = await sb.rpc("sponsor_stats", { p_token: Astro.params.token });
+if (!st?.sponsor) return new Response("Not found", { status: 404 });
+const ads = st.ads ?? [];
+const sum = (k: string) => ads.reduce((a: number, x: any) => a + (x[k] ?? 0), 0);
+const v30 = sum("views30"), c30 = sum("clicks30");
+const ctr = v30 ? ((c30 / v30) * 100).toFixed(1) : "0.0";
+const PL: Record<string, string> = { newsletter: "Morning email", "in-feed": "News feed", "category-sponsor": "Section sponsor", sidebar: "Sidebar", "directory-featured": "Featured listing" };
+Astro.response.headers.set("Cache-Control", "private, no-store");
+Astro.response.headers.set("X-Robots-Tag", "noindex");
+---
+<Base title={`${st.sponsor.name}: your Cleburne Wire results`}>
+  <header class="page-head"><h1>{st.sponsor.name}</h1><p class="dek">Your Cleburne Wire results, updated live. Bookmark this page; it's private to you.</p></header>
+  <div class="single">
+    <div class="util-grid">
+      <div class="util gold"><b style="font-size:2.2rem">{v30.toLocaleString()}</b><span>times your ad was seen, last 30 days</span></div>
+      <div class="util gold"><b style="font-size:2.2rem">{c30.toLocaleString()}</b><span>clicks to your business, last 30 days</span></div>
+      <div class="util"><b style="font-size:2.2rem">{ctr}%</b><span>of people who saw it clicked</span></div>
+      {ads.some((a: any) => a.placement === "newsletter") && <div class="util"><b style="font-size:2.2rem">{st.emails30}</b><span>morning emails sent with your ad to {st.subscribers.toLocaleString()} subscribers</span></div>}
+    </div>
+    <h3 class="group">Your placements</h3>
+    <ul class="plain">{ads.map((a: any) => <li><b>{a.headline}</b><small>{PL[a.placement] ?? a.placement}{a.active ? "" : ", paused"}. {a.views30} views and {a.clicks30} clicks in 30 days; {a.views} views and {a.clicks} clicks all time.</small></li>)}</ul>
+    {ads.length === 0 && <p class="empty">Your ad is being set up. Results start the day it goes live.</p>}
+    <div class="notice" style="margin-top:2rem"><b>Want to change your ad or add a placement?</b> Email <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a>. Plans are month to month; <a href="/advertise">see all options</a>.</div>
+  </div>
+</Base>

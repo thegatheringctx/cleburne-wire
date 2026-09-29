@@ -1,0 +1,48 @@
+---
+import Base from "../../layouts/Base.astro";
+import Page from "../../components/Page.astro";
+import { getTown, getAlerts, getBoosts, sb } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const view = (["today", "weekend", "week", "month"] as const).find((v) => v === Astro.url.searchParams.get("when")) ?? "week";
+const tz = "America/Chicago";
+const now = new Date();
+const dayKey = (d: Date | string) => new Date(d).toLocaleDateString("en-CA", { timeZone: tz });
+const todayKey = dayKey(now);
+const dow = Number(new Date(now.toLocaleString("en-US", { timeZone: tz })).getDay()); // 0 Sun
+const addDays = (n: number) => new Date(now.getTime() + n * 864e5);
+const fri = addDays((5 - dow + 7) % 7 || (dow === 5 ? 0 : 7));
+const range = view === "today" ? [now, addDays(1)] : view === "weekend" ? [dow === 6 || dow === 0 ? now : fri, addDays(dow === 0 ? 1 : (7 - dow) % 7 + 1)] : view === "month" ? [now, addDays(31)] : [now, addDays(8)];
+const [alerts, boosts, { data }] = await Promise.all([
+  getAlerts(town.id), getBoosts(town.id),
+  sb.from("stories").select("id,title,summary,event_at,location,source_name,tags").eq("status", "published").eq("category", "events")
+    .gte("event_at", new Date(range[0].getTime() - 2 * 36e5).toISOString()).lte("event_at", range[1].toISOString()).or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).order("event_at").limit(300),
+]);
+// one line per event per day (recurring classes and duplicate listings collapse)
+const seen = new Set<string>();
+const events = (data ?? []).filter((e) => { const k = dayKey(e.event_at) + e.title.toLowerCase().replace(/[^a-z0-9]/g, ""); if (seen.has(k)) return false; seen.add(k); return true; })
+  .filter((e) => view !== "today" || dayKey(e.event_at) === todayKey);
+const byDay = events.reduce((m: Record<string, any[]>, e) => { (m[dayKey(e.event_at)] ??= []).push(e); return m; }, {});
+const label = (k: string) => { const d = new Date(k + "T12:00:00Z"); const rel = k === todayKey ? "Today, " : k === dayKey(addDays(1)) ? "Tomorrow, " : ""; return rel + d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }); };
+const time = (iso: string) => { const t = new Date(iso).toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }); return t === "12:00 PM" ? "" : t; };
+const tabs = [["today", "Today"], ["weekend", "This weekend"], ["week", "Next 7 days"], ["month", "Next 30 days"]];
+Astro.response.headers.set("Cache-Control", "public, max-age=600, s-maxage=600");
+---
+<Base title={`Things to do in ${town.name}, TX: events calendar`} {town} {alerts} desc={`Every event in ${town.name}, Texas this week: community events, classes, music, sports and family activities, updated all day.`}>
+  <Page {town} title={`Things to do in ${town.name}`} dek="Every event we can find, updated all day. Add any of them to your calendar in one tap.">
+    <nav class="ev-tabs" aria-label="When">{tabs.map(([k, l]) => <a href={`/${town.slug}/events?when=${k}`} aria-current={k === view ? "page" : undefined}>{l}</a>)}</nav>
+    {boosts.length > 0 && <div class="boosts">{boosts.map((b) => <a class="boost" href={`/go/${b.id}`} rel="sponsored"><span>Featured event</span><b>{b.headline}</b><small>{b.body}</small></a>)}</div>}
+    {events.length === 0 && <div class="empty-cta"><b>Nothing on the calendar {view === "today" ? "today" : "for these dates"} yet.</b><p>Know about something? Add it free and it's usually live within the hour.</p><a class="btn" href="/submit?kind=event">Add an event</a></div>}
+    {Object.entries(byDay).map(([k, list]) => <section class="ev-day">
+      <h3 class="ev-date">{label(k)}</h3>
+      {(list as any[]).map((e) => <article class="ev">
+        <div class="ev-time">{time(e.event_at) || "All day"}</div>
+        <div class="ev-main">
+          <h2><a href={`/${town.slug}/s/${e.id}`}>{e.title}</a></h2>
+          {e.location && <p class="ev-loc">{e.location.split(",").slice(0, 2).join(",")}</p>}
+          <a class="ev-cal" href={`/api/ics/${e.id}`} rel="nofollow">Add to calendar</a>
+        </div>
+      </article>)}
+    </section>)}
+    <div class="notice" style="margin-top:2rem"><b>Hosting something?</b> <a href="/submit?kind=event">Add your event free</a>, or <a href="/advertise">boost it to the top</a> for $25.</div>
+  </Page>
+</Base>

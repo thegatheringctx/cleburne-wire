@@ -1,0 +1,11 @@
+---
+// Shown wherever a paid ad slot is empty, so the offer is always one click away.
+const { town, variant = "inline" } = Astro.props;
+const name = town?.name ?? "Cleburne";
+---
+<a class={`house-ad ${variant}`} href="/advertise">
+  <span class="ha-label">Advertise here</span>
+  <b>Put your business in front of {name}, every day.</b>
+  <span>Event boosts from $25. Featured listings from $30 a month. Founding rates, no contracts.</span>
+  <span class="ha-cta">See packages and prices</span>
+</a>

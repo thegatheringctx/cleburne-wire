@@ -1,0 +1,40 @@
+---
+import Base from "../../layouts/Base.astro";
+import Page from "../../components/Page.astro";
+import { getTown, getAlerts, sb } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const BASE = import.meta.env.PUBLIC_SUPABASE_URL + "/storage/v1/object/public/reader-photos/";
+const wk = (() => { const d = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
+const [alerts, { data: photos }, { data: past }] = await Promise.all([
+  getAlerts(town.id),
+  sb.from("reader_photos").select("id,path,caption,credit,votes,week_of").eq("town_id", town.id).eq("status", "approved").gte("week_of", wk).order("votes", { ascending: false }).order("created_at").limit(40),
+  sb.from("reader_photos").select("id,path,caption,credit,votes,week_of").eq("town_id", town.id).eq("status", "approved").lt("week_of", wk).order("week_of", { ascending: false }).order("votes", { ascending: false }).limit(1),
+]);
+const sent = Astro.url.searchParams.get("sent") === "1";
+Astro.response.headers.set("Cache-Control", "public, max-age=120, s-maxage=120");
+---
+<Base title={`${town.name} photo of the week — ${town.name} Wire`} {town} {alerts} desc={`Share your best ${town.name} photo and vote for the photo of the week. The winner is featured on Cleburne Wire and our Facebook page.`}>
+  <Page {town} title="Photo of the week" dek={`Your best shot of ${town.name}: sunsets, downtown, game nights, the lake, a great storefront. Vote for your favorite; the winner is featured Monday on the site and our Facebook page.`}>
+    {sent && <div class="notice" style="border-left:6px solid var(--gold)"><b>Thanks! Your photo is in.</b> It goes through a quick automatic review and usually appears within the hour.</div>}
+    {(past ?? [])[0] && <section class="pw-win"><img src={BASE + past![0].path} alt={past![0].caption ?? "Last week's winning photo"} loading="lazy" /><div><span>Last week's winner</span><b>{past![0].caption}</b><small>Photo by {past![0].credit ?? "a reader"}, {past![0].votes} votes</small></div></section>}
+    <h3 class="group">This week's photos</h3>
+    {(photos ?? []).length === 0 ? <p class="empty">No photos yet this week. Be the first.</p> :
+    <div class="pw-grid">{photos!.map((p) => <figure class="pw" data-id={p.id}><img src={BASE + p.path} alt={p.caption ?? "Reader photo"} loading="lazy" /><figcaption><b>{p.caption}</b><small>Photo by {p.credit ?? "a reader"}</small><button type="button" class="pw-vote"><span class="n">{p.votes}</span> Vote</button></figcaption></figure>)}</div>}
+    <script is:inline>
+      (function(){ var k='cw_voter'; var v=localStorage.getItem(k); if(!v){v=(crypto.randomUUID?crypto.randomUUID():String(Math.random()).slice(2)+Date.now()); localStorage.setItem(k,v);}
+        document.querySelectorAll('.pw').forEach(function(f){ var b=f.querySelector('.pw-vote'); b.onclick=function(){ fetch('/api/play',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'photo',photo:f.dataset.id,voter:v})}).then(function(r){return r.json()}).then(function(r){ if(r.votes>=0){ b.querySelector('.n').textContent=r.votes; } document.querySelectorAll('.pw-vote').forEach(function(x){x.disabled=true}); b.classList.add('mine'); }); }; }); })();
+    </script>
+    <h3 class="group">Share a photo</h3>
+    <form class="card" method="post" action="/api/photo-upload" enctype="multipart/form-data">
+      <input type="hidden" name="town" value={town.slug} />
+      <label>Photo (JPG, PNG or WebP, up to 8 MB)<input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required /></label>
+      <label>Caption<input name="caption" maxlength="200" placeholder="Sunset over Lake Pat Cleburne" required /></label>
+      <label>Credit it to<input name="credit" maxlength="60" placeholder="Your name" required /></label>
+      <label>Your email (not shown)<input name="email" type="email" required maxlength="200" /></label>
+      <label class="check"><input type="checkbox" name="ok" value="1" required /> I took this photo and give Cleburne Wire permission to publish it with credit, on the site and our Facebook page.</label>
+      <input name="company" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true" />
+      <button class="btn">Submit my photo</button>
+      <p class="fix">Photos are reviewed automatically. Please no photos where a child is the main subject.</p>
+    </form>
+  </Page>
+</Base>

@@ -1,0 +1,54 @@
+---
+import Base from "../../../layouts/Base.astro";
+import SubscribeBand from "../../../components/SubscribeBand.astro";
+import HouseAd from "../../../components/HouseAd.astro";
+import { getTown, getAlerts, sb, fmtTime } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const { data: x } = await sb.from("explainers").select("*, sponsors(business_name,website)").eq("town_id", town.id).eq("slug", Astro.params.slug!).maybeSingle();
+if (!x) return Astro.redirect(`/${town.slug}`);
+const alerts = await getAlerts(town.id);
+const ors = (x.keywords ?? []).map((k: string) => `title.ilike.%${k}%`).join(",");
+const { data: related } = ors ? await sb.from("stories").select("id,title,source_name,published_at").eq("status","published").or(ors).order("published_at",{ascending:false}).limit(8) : { data: [] };
+const today = new Date().toISOString().slice(0,10);
+const fmtD = (d: string) => new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+Astro.response.headers.set("Cache-Control", "public, max-age=1800, s-maxage=1800");
+---
+<Base title={`${x.title} — ${town.name} Wire`} {town} {alerts} desc={x.dek}>
+  <article class="explainer">
+    <h1>{x.title}</h1>
+    <p class="dek">{x.dek}</p>
+    {x.sponsors ? <p class="presented">This guide is presented by <a href={x.sponsors.website ?? "#"} rel="sponsored">{x.sponsors.business_name}</a>. Sponsors have no say in its content.</p> : null}
+
+    <dl class="factgrid">{x.facts.map((f: any) => <div><dt>{f.label}</dt><dd>{f.value}</dd></div>)}</dl>
+
+    {x.calc && <section class="calc">
+      <h2>{x.calc.label}</h2>
+      <label>Taxable value of your home <input id="cv" type="number" inputmode="numeric" min="0" step="1000" value="250000" /></label>
+      <p id="co" aria-live="polite"></p>
+      <script define:vars={{ rate: x.calc.rate_per_100 }}>
+        const i = document.getElementById("cv"), o = document.getElementById("co");
+        const f = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+        const u = () => { const v = Math.max(0, Number(i.value) || 0); const yr = v / 100 * rate; o.innerHTML = `<b>${f(yr)}</b> a year, about <b>${f(yr / 12)}</b> a month. Estimate only; exemptions (homestead, over-65, disability) lower your taxable value.`; };
+        i.addEventListener("input", u); u();
+      </script>
+    </section>}
+
+    {x.sections.map((s: any) => <section><h2>{s.heading}</h2><p>{s.body}</p></section>)}
+
+    {x.dates.length > 0 && <section><h2>Key dates</h2>
+      <ol class="timeline">{x.dates.map((d: any) => <li class={d.date < today ? "past" : ""}><time>{fmtD(d.date)}</time><span>{d.label}</span></li>)}</ol>
+    </section>}
+
+    {(related ?? []).length > 0 && <section><h2>Latest coverage</h2>
+      <ul class="plain">{related!.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a><small>{s.source_name}, {fmtTime(s.published_at)}</small></li>)}</ul>
+    </section>}
+
+    <section class="sources"><h2>Sources</h2>
+      <ul class="plain">{x.sources.map((s: any) => <li><a href={s.url} rel="nofollow noopener" target="_blank">{s.name}</a></li>)}</ul>
+      <p>Last updated {new Date(x.updated_at).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric",timeZone:"America/Chicago"})}. See something wrong? <a href="mailto:news@cleburnewire.com">Tell us</a>.</p>
+    </section>
+
+    {!x.sponsors && <HouseAd {town} />}
+    <SubscribeBand {town} />
+  </article>
+</Base>

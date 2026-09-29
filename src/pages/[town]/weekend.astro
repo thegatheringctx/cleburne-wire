@@ -1,0 +1,37 @@
+---
+import Page from "../../components/Page.astro";
+import Base from "../../layouts/Base.astro";
+import { getBoosts, getTown, getAlerts, getAds, sb } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const [alerts, ad, gRes] = await Promise.all([getAlerts(town.id), getAds(town.id, "category-sponsor", "weekend"),
+  sb.from("guides").select("*").eq("town_id", town.id).eq("kind", "weekend").order("week_of", { ascending: false }).limit(1).maybeSingle()]);
+const g = gRes.data;
+const boosts = await getBoosts(town.id);
+// After Monday, last weekend's guide is stale: show the week ahead until Thursday's new guide publishes
+const stale = !!g && Date.now() > new Date(g.week_of + "T12:00:00Z").getTime() + 3 * 864e5;
+const { data: wk } = stale || !g ? await sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").gte("event_at", new Date().toISOString()).lte("event_at", new Date(Date.now() + 7 * 864e5).toISOString()).order("event_at").limit(120) : { data: [] };
+const seenW = new Set<string>();
+const week = (wk ?? []).filter((e: any) => { const k = new Date(e.event_at).toLocaleDateString("en-CA", { timeZone: "America/Chicago" }) + e.title.toLowerCase(); if (seenW.has(k)) return false; seenW.add(k); return true; });
+const byDay = week.reduce((m: Record<string, any[]>, e: any) => { const k = new Date(e.event_at).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" }); (m[k] ??= []).push(e); return m; }, {});
+const tm = (iso: string) => { const t = new Date(iso).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }); return t === "12:00 PM" ? "" : t; };
+Astro.response.headers.set("Cache-Control", "public, max-age=1800, s-maxage=1800");
+---
+<Base title={g ? `${g.title} — ${town.name} Wire` : `This weekend in ${town.name}`} {town} {alerts} desc={g?.intro}>
+  {(!g || stale) ? <Page {town} title={`Coming up this week in ${town.name}`} dek="The next Weekend Guide publishes Thursday morning. Here's everything on the calendar until then." railProps={{ events: false }}>
+    {boosts.length > 0 && <div class="boosts">{boosts.map((b) => <a class="boost" href={`/go/${b.id}`} rel="sponsored"><span>Featured event</span><b>{b.headline}</b><small>{b.body}</small></a>)}</div>}
+    {Object.keys(byDay).length === 0 && <p class="empty">Nothing on the calendar yet this week. <a href="/submit?kind=event">Add an event</a>.</p>}
+    {Object.entries(byDay).map(([day, list]) => <section class="ev-day"><h3 class="ev-date">{day}</h3>
+      {(list as any[]).map((e) => <article class="ev"><div class="ev-time">{tm(e.event_at) || "All day"}</div><div class="ev-main"><h2><a href={`/${town.slug}/s/${e.id}`}>{e.title}</a></h2>{e.location && <p class="ev-loc">{e.location.split(",").slice(0, 2).join(",")}</p>}<a class="ev-cal" href={`/api/ics/${e.id}`} rel="nofollow">Add to calendar</a></div></article>)}
+    </section>)}
+    <p><a class="btn ghost" href={`/${town.slug}/events`}>Full events calendar</a></p>
+  </Page> :
+  <Page {town} title={g.title} dek={g.intro} crumbs={[{ label: `Weekend of ${new Date(g.week_of + "T12:00:00Z").toLocaleDateString("en-US",{month:"long",day:"numeric"})}`, href: `/${town.slug}/weekend` }]} railProps={{ events: false }}>
+    {ad && <a class="presented-by" href={`/go/${ad.id}`} rel="sponsored"><span>Weekend Guide presented by</span><b>{ad.headline}</b></a>}
+    {boosts.length > 0 && <div class="boosts">{boosts.map((b) => <a class="boost" href={`/go/${b.id}`} rel="sponsored"><span>Featured event</span><b>{b.headline}</b><small>{b.body}</small></a>)}</div>}
+    {(g.items ?? []).map((s: any) => <section><h3 class="group">{s.heading}</h3>
+      {(s.items ?? []).map((i: any) => { const href = i.story_id ? `/${town.slug}/s/${i.story_id}` : i.biz_slug ? `/${town.slug}/biz/${i.biz_slug}` : null;
+        return <article class="story"><div><h2>{href ? <a href={href}>{i.title}</a> : i.title}</h2><p>{i.blurb}</p><div class="meta">{i.when && <span>{i.when}</span>}{i.where && <span>{i.where}</span>}</div></div></article>; })}
+    </section>)}
+    <div class="notice" style="margin-top:2rem"><b>Know about something we missed?</b> <a href="/submit">Add your event</a>. It's free and usually live within the hour.</div>
+  </Page>}
+</Base>

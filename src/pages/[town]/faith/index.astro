@@ -1,0 +1,41 @@
+---
+import Base from "../../../layouts/Base.astro";
+import Page from "../../../components/Page.astro";
+import { getTown, getAlerts, sb, fmtTime } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const [alerts, { data: churches }, { data: ev }] = await Promise.all([
+  getAlerts(town.id),
+  sb.from("businesses").select("name,slug,address,subcategory,website,service_times,kids_ministry,languages,church_updated_at").eq("town_id", town.id).eq("active", true).eq("category", "churches").order("name"),
+  sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").gte("event_at", new Date().toISOString())
+    .or("title.ilike.%church%,title.ilike.%mass%,title.ilike.%worship%,title.ilike.%ministry%,title.ilike.%bible%,title.ilike.%pantry%,title.ilike.%food drive%,title.ilike.%volunteer%,title.ilike.%benefit%,title.ilike.%fundraiser%,title.ilike.%support group%,title.ilike.%grief%,title.ilike.%recovery%,location.ilike.%church%")
+    .order("event_at").limit(40),
+]);
+const seen = new Set<string>(); const events = (ev ?? []).filter((e) => { const k = e.title.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 15);
+// Fair rotation: a new order every day (same for every visitor that day), so each church takes turns at the top.
+// ?sort=az gives a plain alphabetical list.
+const az = Astro.url.searchParams.get("sort") === "az";
+const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+const h = (x: string) => { let v = 2166136261; for (const ch of x) { v ^= ch.charCodeAt(0); v = Math.imul(v, 16777619); } return v >>> 0; };
+const list = az ? (churches ?? []) : [...(churches ?? [])].sort((a, b) => h(a.slug + day) - h(b.slug + day));
+const denom = (s: string | null) => s ? String(s).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null;
+Astro.response.headers.set("Cache-Control", "public, max-age=1800, s-maxage=1800");
+---
+<Base title={`Churches, ministries and nonprofits in ${town.name}, TX`} {town} {alerts} desc={`Every church in ${town.name}, listed alphabetically, plus upcoming services, food pantries, support groups and volunteer opportunities.`}>
+  <Page {town} title="Churches and community" dek={`Find a church in ${town.name}: every congregation listed alphabetically and equally, with service times churches keep up to date themselves. Plus support groups, food drives and ways to help.`}>
+    <h3 class="group">Coming up</h3>
+    {events.length === 0 && <p class="empty">Nothing posted yet. Churches and nonprofits can list events free by emailing news@cleburnewire.com.</p>}
+    <ul class="plain">{events.map((e) => <li><a href={`/${town.slug}/s/${e.id}`}>{e.title}</a><small>{fmtTime(e.event_at)}{e.location ? `, ${e.location.split(",")[0]}` : ""}</small></li>)}</ul>
+
+    <h3 class="group">Churches in {town.name}</h3>
+    <p class="list-note">{(churches ?? []).length} churches. {az ? <>A to Z. <a href={`/${town.slug}/faith`}>Rotating order</a></> : <>The order rotates daily so every church gets a turn at the top. <a href={`/${town.slug}/faith?sort=az`}>Sort A to Z</a></>}</p>
+    <div class="church-grid">{list.map((c) => <div class="church">
+      <a href={`/${town.slug}/biz/${c.slug}`}><h2>{c.name}</h2></a>
+      <div class="sub">{[denom(c.subcategory), c.address?.split(",")[0]].filter(Boolean).join(", ")}</div>
+      {c.service_times ? <p class="times">{c.service_times}</p> : <p class="times none">Service times not listed yet</p>}
+      <div class="tags">{c.kids_ministry && <span>Nursery or kids</span>}{c.languages && <span>{c.languages}</span>}</div>
+      <a class="upd" href={`/${town.slug}/faith/update?c=${c.slug}`}>{c.service_times ? "Update this listing" : "Add service times"}</a>
+    </div>)}</div>
+
+    <div class="notice" style="margin-top:2rem"><b>Churches, ministries and nonprofits:</b> send service times, events, food distributions and volunteer needs to <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a>. Listings are free and posted the same day. Missing from the list? <a href={`/${town.slug}/faith/add`}>Add your church</a>.</div>
+  </Page>
+</Base>

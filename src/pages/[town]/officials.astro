@@ -1,0 +1,27 @@
+---
+import Base from "../../layouts/Base.astro";
+import Page from "../../components/Page.astro";
+import { getTown, getAlerts, sb } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const [alerts, { data }] = await Promise.all([getAlerts(town.id), sb.from("officials").select("*").eq("town_id", town.id).eq("active", true).order("level_order").order("sort")]);
+const rows = data ?? [];
+const levels = [...new Set(rows.map((r) => r.level))];
+const verified = rows.reduce((m, r) => (r.verified_on > m ? r.verified_on : m), "");
+Astro.response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600");
+---
+<Base title={`Who represents ${town.name}, TX: council, county, state and federal`} {town} {alerts} desc={`${town.name}'s mayor and council, Johnson County judge and commissioners, school board, state legislators and members of Congress, with how to reach each.`}>
+  <Page {town} title="Who represents you" dek={`Every elected official who makes decisions for ${town.name}, from City Hall to Washington, and how to reach them.`}>
+    <div class="notice"><b>Not sure which district you're in?</b> City council seats and county precincts depend on your address. Look up yours with the <a href="https://www.cleburne.net/238/City-Council" target="_blank" rel="noopener">city district map</a> or the state's <a href="https://wrm.capitol.texas.gov/" target="_blank" rel="noopener">Who Represents Me</a> tool.</div>
+    {levels.map((lv) => <section>
+      <h3 class="group">{lv}</h3>
+      <div class="officials">{rows.filter((r) => r.level === lv).map((r) => <div class="official">
+        <div class="o-office">{r.office}{r.district && <span>{r.district}</span>}</div>
+        {r.name ? <div class="o-name">{r.url ? <a href={r.url} target="_blank" rel="noopener">{r.name}</a> : r.name}</div> : r.url && <div class="o-name"><a href={r.url} target="_blank" rel="noopener">See current roster</a></div>}
+        {r.note && <p class="o-note">{r.note}</p>}
+        <div class="o-contact">{r.phone && <a href={`tel:${r.phone}`}>{r.phone}</a>}{r.email && <a href={`mailto:${r.email}`}>Email</a>}{r.office_address && <span>{r.office_address}</span>}</div>
+      </div>)}</div>
+    </section>)}
+    <p class="fix">Verified against official sources on {new Date(verified + "T12:00:00Z").toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}. Something out of date? <a href="mailto:news@cleburnewire.com?subject=Officials%20page%20correction">Tell us</a>.</p>
+    <p><a class="btn ghost" href={`/${town.slug}/meetings`}>See upcoming public meetings</a></p>
+  </Page>
+</Base>

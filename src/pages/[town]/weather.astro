@@ -1,0 +1,39 @@
+---
+import Base from "../../layouts/Base.astro";
+import Page from "../../components/Page.astro";
+import { getTown, getAlerts, getFeed, fmtTime, forecast, niceTitle } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const [alerts, news, periods] = await Promise.all([getAlerts(town.id), getFeed(town.id, "weather", 12), forecast(town)]);
+const wxAlerts = news.filter((s) => !/ weather \d{4}-\d{2}-\d{2}:/.test(s.title));
+// pair day + night periods into one card per day
+const days: any[] = [];
+for (const p of periods) {
+  const key = new Date(p.startTime).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "numeric", day: "numeric" });
+  let d = days.find((x) => x.key === key); if (!d) { d = { key, name: p.isDaytime ? p.name : p.name.replace(/ ?Night$/, ""), day: null, night: null }; days.push(d); }
+  if (p.isDaytime) d.day = p; else d.night = p;
+}
+const now = periods[0];
+const rain = (p: any) => p?.probabilityOfPrecipitation?.value ?? null;
+Astro.response.headers.set("Cache-Control", "public, max-age=900, s-maxage=900");
+---
+<Base title={`${town.name} weather: 7-day forecast and alerts`} {town} {alerts} desc={`The 7-day forecast for ${town.name}, Texas from the National Weather Service, plus active alerts.`}>
+  <Page {town} title="Weather and alerts" dek={`${town.name}'s 7-day forecast from the National Weather Service, updated every 15 minutes.`}>
+    {wxAlerts.length > 0 && <div class="notice" style="border-left:6px solid var(--alert)"><b>{niceTitle(wxAlerts[0].title)}</b> <a href={`/${town.slug}/s/${wxAlerts[0].id}`}>Details</a></div>}
+    {now ? <>
+      <section class="wx-now">
+        <div class="wx-temp">{now.temperature}°</div>
+        <div><b>{now.name}</b><p>{now.detailedForecast}</p></div>
+      </section>
+      <div class="wx-days">{days.slice(0, 7).map((d) => <div class="wx-day">
+        <span class="wx-dn">{d.name.replace("This Afternoon", "Today").replace("Tonight", "Tonight")}</span>
+        {d.day?.icon && <img src={d.day.icon.replace(/size=\w+/, "size=medium")} alt="" width="56" height="56" loading="lazy" referrerpolicy="no-referrer" />}
+        {!d.day && d.night?.icon && <img src={d.night.icon.replace(/size=\w+/, "size=medium")} alt="" width="56" height="56" loading="lazy" referrerpolicy="no-referrer" />}
+        <span class="wx-hl">{d.day ? <b>{d.day.temperature}°</b> : null}{d.night ? <span>{d.night.temperature}°</span> : null}</span>
+        <small>{(d.day ?? d.night)?.shortForecast}</small>
+        {rain(d.day ?? d.night) ? <small class="wx-rain">{rain(d.day ?? d.night)}% rain</small> : null}
+      </div>)}</div>
+    </> : <p class="empty">The forecast is temporarily unavailable. <a href="https://forecast.weather.gov/MapClick.php?lat=32.3477&lon=-97.3867" target="_blank" rel="noopener">See it at weather.gov</a>.</p>}
+    <p class="fix">Forecast: National Weather Service, Fort Worth office. For emergencies call 911. <a href={`/${town.slug}/roads`}>Roads and outages</a></p>
+    {wxAlerts.length > 0 && <><h3 class="group">Alerts and weather news</h3><ul class="plain">{wxAlerts.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{niceTitle(s.title)}</a><small>{fmtTime(s.published_at)}</small></li>)}</ul></>}
+  </Page>
+</Base>

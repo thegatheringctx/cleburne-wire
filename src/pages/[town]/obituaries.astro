@@ -1,0 +1,26 @@
+---
+import Page from "../../components/Page.astro";
+import Base from "../../layouts/Base.astro";
+import { getTown, getAlerts, getFeed, getAds, getBusinesses } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const [alerts, obits, ad, homes] = await Promise.all([getAlerts(town.id), getFeed(town.id, "obituaries", 120), getAds(town.id, "category-sponsor", "obituaries"), getBusinesses(town.id, "funeral", 6)]);
+const clean = (t: string) => t.replace(/\s*\bobituary\b:?\s*/ig, " ").replace(/\s{2,}/g, " ").replace(/\s*[—-]\s*obituary$/i, "").replace(/\s*Obituary\s*\(\d{4}\).*$/i, "").replace(/\s*-\s*Cleburne.*$/i, "").trim();
+const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Chicago" });
+const initials = (n: string) => n.split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+const groups: Record<string, any[]> = {};
+for (const o of obits) { const d = day(o.published_at); (groups[d] ??= []).push(o); }
+Astro.response.headers.set("Cache-Control", "public, max-age=1800, s-maxage=1800");
+---
+<Base title={`${town.name} obituaries — recent deaths and services`} {town} {alerts} desc={`Recent obituaries for ${town.name}, Texas, updated daily from area funeral homes.`}>
+  <Page {town} title={`${town.name} obituaries`} dek="Updated daily from area funeral homes. Each name opens the full notice with service details." railProps={{ headlines: false }}>
+    {ad ? <a class="sponsor" href={`/go/${ad.id}`} rel="sponsored"><small>Sponsored</small><b>{ad.headline}</b>{ad.body}</a> : null}
+    {Object.entries(groups).map(([d, list]) => <>
+      <h3 class="group">{d}</h3>
+      <div class="obit-list">{list.map((o) => { const n = clean(o.title); return <a class="obit" href={o.source_url ?? `/${town.slug}/s/${o.id}`} rel="nofollow noopener" target="_blank">
+        <div class="mono">{initials(n)}</div>
+        <div><h2>{n}</h2>{o.summary && <div class="sub">{o.summary.slice(0, 110)}{o.summary.length > 110 ? "…" : ""}</div>}<span class="src">Full notice at {(o.source_name ?? "source").replace(/^Legacy.*/i, "Legacy.com")}</span></div>
+      </a>; })}</div>
+    </>)}
+    <div class="notice" style="margin-top:2rem"><b>Missing someone?</b> Funeral homes and families can <a href="/submit">submit a notice</a>. It's free and posted within the hour.</div>
+  </Page>
+</Base>

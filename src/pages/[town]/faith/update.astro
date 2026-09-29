@@ -1,0 +1,27 @@
+---
+import Base from "../../../layouts/Base.astro";
+import Page from "../../../components/Page.astro";
+import { getTown, sb } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const { data: churches } = await sb.from("businesses").select("slug,name,service_times,kids_ministry,languages,website").eq("town_id", town.id).eq("active", true).eq("category", "churches").order("name");
+const pick = (churches ?? []).find((c) => c.slug === Astro.url.searchParams.get("c"));
+const done = Astro.url.searchParams.get("done") === "1";
+Astro.response.headers.set("Cache-Control", "private, no-store");
+---
+<Base title={`Update your church listing — ${town.name} Wire`} {town}>
+  <Page {town} title={done ? "Thank you. Your listing is updated." : "Update your church listing"} dek={done ? "The changes are live on the Churches and community page now." : `Free for every congregation in ${town.name}. Changes go live right away and show the date they were updated.`} rail={false}>
+    {done ? <p><a class="btn" href={`/${town.slug}/faith`}>See the church list</a></p> :
+    <form class="card" method="post" action="/api/church">
+      <input type="hidden" name="town" value={town.slug} />
+      <label>Church<select name="slug" required>{!pick && <option value="">Choose your church</option>}{(churches ?? []).map((c) => <option value={c.slug} selected={c.slug === pick?.slug}>{c.name}</option>)}</select></label>
+      <label>Service times<textarea name="service_times" rows="3" maxlength="300" placeholder="Sunday 9:00 and 11:00 a.m.; Wednesday 7:00 p.m.">{pick?.service_times ?? ""}</textarea></label>
+      <label>Languages (optional)<input name="languages" maxlength="60" placeholder="English and Spanish" value={pick?.languages ?? ""} /></label>
+      <label class="check"><input type="checkbox" name="kids" value="1" checked={!!pick?.kids_ministry} /> We have a kids ministry or nursery</label>
+      <label>Website (optional)<input name="website" maxlength="200" placeholder="https://" value={pick?.website ?? ""} /></label>
+      <label>Your email (not shown publicly)<input type="email" name="email" required maxlength="200" /></label>
+      <input name="company" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true" />
+      <button class="btn">Save listing</button>
+      <p class="fix">Not listed? <a href={`/${town.slug}/faith/add`}>Add your church</a>.</p>
+    </form>}
+  </Page>
+</Base>

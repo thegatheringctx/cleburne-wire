@@ -1,0 +1,26 @@
+---
+import Page from "../../components/Page.astro";
+import Base from "../../layouts/Base.astro";
+import { getTown, getAlerts, getAds, sb, fmtTime } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const [alerts, ad, res, fresh] = await Promise.all([getAlerts(town.id), getAds(town.id, "in-feed"),
+  sb.from("stories").select("id,title,summary,biz_status,biz_name,image_url,published_at,source_name").eq("status","published").not("biz_status","is",null).or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).order("published_at",{ascending:false}).limit(60),
+  sb.from("businesses").select("name,slug,category,address").eq("town_id", town.id).eq("source","osm").gte("created_at", new Date(Date.now()-30*864e5).toISOString()).order("created_at",{ascending:false}).limit(12)]);
+const items = res.data ?? [];
+const label: Record<string,string> = { opening: "Now open", closing: "Closing", coming_soon: "Coming soon", moving: "Moving" };
+const color: Record<string,string> = { opening: "#2a7f3f", closing: "#8c1d2d", coming_soon: "#5b3f9e", moving: "#9a6b00" };
+Astro.response.headers.set("Cache-Control", "public, max-age=1800, s-maxage=1800");
+---
+<Base title={`What's opening and closing in ${town.name}, TX`} {town} {alerts} desc={`New businesses, closings, and what's coming to ${town.name}, tracked automatically.`}>
+  <Page {town} title="Opening and closing" dek={`New businesses, closings, and what's going in that building in ${town.name}, as they're reported.`}>
+    {ad && <a class="sponsor" href={`/go/${ad.id}`} rel="sponsored"><small>Sponsored</small><b>{ad.headline}</b>{ad.body}</a>}
+    {items.length === 0 && <p class="empty">Nothing tracked yet. Check back after the next news cycle.</p>}
+    {items.map((s) => <article class="story"><div>
+      <div class="kicker"><span style={`color:${color[s.biz_status]}`}>{label[s.biz_status]}</span>{s.biz_name && <span>{s.biz_name}</span>}</div>
+      <h2><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a></h2>{s.summary && <p>{s.summary}</p>}
+      <div class="meta"><span>{s.source_name}</span><time>{fmtTime(s.published_at)}</time></div></div>
+      {s.image_url && <img referrerpolicy="no-referrer" class="img" src={s.image_url} alt="" loading="lazy" onerror="this.onerror=null;this.remove()" />}
+    </article>)}
+    <div class="notice" style="margin-top:2rem"><b>Opening something?</b> <a href="/submit">Tell us</a> and it goes on this page and on Facebook the same day, free.</div>
+  </Page>
+</Base>

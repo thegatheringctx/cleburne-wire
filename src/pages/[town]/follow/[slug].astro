@@ -1,0 +1,23 @@
+---
+import Base from "../../../layouts/Base.astro";
+import Page from "../../../components/Page.astro";
+import { getTown, getAlerts, sb, fmtTime } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const { data: sl } = await sb.from("storylines").select("*").eq("town_id", town.id).eq("slug", Astro.params.slug!).maybeSingle();
+if (!sl) return Astro.rewrite("/404");
+const [alerts, { data: links }] = await Promise.all([getAlerts(town.id), sb.from("storyline_stories").select("stories(id,title,summary,published_at,source_name,status)").eq("storyline_id", sl.id)]);
+const timeline = (links ?? []).map((l: any) => l.stories).filter((s: any) => s && s.status === "published").sort((a: any, b: any) => +new Date(b.published_at) - +new Date(a.published_at));
+const upd = new Date(sl.updated_at).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "America/Chicago" });
+Astro.response.headers.set("Cache-Control", "public, max-age=600, s-maxage=600");
+---
+<Base title={`${sl.title}: what to know — ${town.name} Wire`} {town} {alerts} desc={sl.summary}>
+  <Page {town} title={sl.title} dek={`What to know, updated ${upd}. Every story we've published on it, newest first.`} crumbs={[{ label: "Stories we're following", href: `/${town.slug}/follow` }]}>
+    <section class="wtk"><span>What to know</span><p>{sl.summary}</p>
+      {(sl.key_points ?? []).length > 0 && <ul>{(sl.key_points as string[]).map((k) => <li>{k}</li>)}</ul>}
+      {sl.next_up && <p class="wtk-next"><b>Next:</b> {sl.next_up}</p>}
+    </section>
+    <h3 class="group">Timeline</h3>
+    <ol class="tl">{timeline.map((s: any) => <li><time>{new Date(s.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })}</time><div><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a>{s.summary && <p>{s.summary.slice(0, 180)}{s.summary.length > 180 ? "\u2026" : ""}</p>}<small>{s.source_name}</small></div></li>)}</ol>
+    <p class="fix">Summaries are written from our published stories and updated daily. Something missing or wrong? <a href="mailto:news@cleburnewire.com">Tell us</a>.</p>
+  </Page>
+</Base>

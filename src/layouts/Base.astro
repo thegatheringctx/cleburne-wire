@@ -1,0 +1,84 @@
+---
+import "../styles/global.css";
+import { getTowns } from "../lib/db";
+const { title, town, alerts = [], image = null, desc = "Up-to-date news, alerts, meetings, sports, events and obituaries for Cleburne, Texas." } = Astro.props;
+const towns = await getTowns(); const slug = town?.slug ?? "cleburne";
+// Search-result hygiene for every page: titles <= 65 chars, descriptions 70-160 chars, cut at a word boundary.
+const clip = (x: string, n: number) => (x ?? "").length <= n ? (x ?? "") : (x ?? "").slice(0, n - 1).replace(/[\s,;:.\u2014-]+\S*$/, "") + "\u2026";
+const pageTitle = (title ?? "").length > 65 ? clip(String(title).replace(/\s+\u2014\s+[^\u2014]+ Wire$/, ""), 65) : title;
+const pageDesc = (() => { let d = String(desc ?? "").replace(/\s+/g, " ").trim(); if (d.length < 70) d = `${d} Local news, events and guides for ${town?.name ?? "Cleburne"}, Texas, from Cleburne Wire.`.trim(); return clip(d, 158); })();
+---
+<html lang="en"><head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" /><link rel="icon" href="/favicon.png" sizes="48x48" /><link rel="apple-touch-icon" href="/apple-touch-icon.png" /><link rel="manifest" href="/manifest.webmanifest" /><meta name="theme-color" content="#0E2238" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{pageTitle}</title><meta name="description" content={pageDesc} />
+  <meta property="og:title" content={pageTitle} /><meta property="og:description" content={pageDesc} />
+  <link rel="alternate" type="application/rss+xml" href={`/${slug}/rss.xml`} />
+  <link rel="canonical" href={`https://cleburnewire.com${Astro.url.pathname}`} />
+  <meta property="og:url" content={`https://cleburnewire.com${Astro.url.pathname}`} />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Cleburne Wire" />
+  <meta name="twitter:card" content="summary_large_image" />
+  {image && <meta property="og:image" content={image} />}{image && <meta name="twitter:image" content={image} />}
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org", "@type": "NewsMediaOrganization",
+    "name": "Cleburne Wire", "url": "https://cleburnewire.com",
+    "logo": "https://cleburnewire.com/favicon.svg",
+    "description": "Automated local news, weather, roads, obituaries, sports and events for Cleburne, Texas.",
+    "areaServed": { "@type": "City", "name": "Cleburne", "containedInPlace": { "@type": "AdministrativeArea", "name": "Johnson County, Texas" } },
+    "sameAs": ["https://www.facebook.com/CleburneWire"]
+  })} />
+</head><body>
+  <header class="mast"><div class="wrap">
+    <a class="brand" href={`/${slug}`}>{town?.name ?? "Cleburne"} <span>Wire</span></a>
+    <nav aria-label="Main"><a href={`/${slug}/weekend`}>This weekend</a><a href={`/${slug}/sports`}>Sports</a><a href={`/${slug}/guide`}>Guide</a><a href={`/${slug}/homes`}>Homes</a><a href={`/${slug}/obituaries`}>Obituaries</a><a class="adv" href="/advertise">Advertise</a><a class="srch" href="/search" aria-label="Search"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10 3a7 7 0 0 1 5.6 11.2l4.6 4.6-1.4 1.4-4.6-4.6A7 7 0 1 1 10 3Zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z"/></svg></a><a class="cta" href="#join"><span class="long">Get the daily email</span><span class="short">Subscribe</span></a></nav>
+    <details class="menu"><summary aria-label="Menu"><span></span><span></span><span></span></summary>
+      <div class="menu-panel">
+        <form method="get" action="/search" class="menu-search"><input name="q" placeholder="Search Cleburne Wire" aria-label="Search" /></form>
+        <a href={`/${slug}`}>Top stories</a><a href={`/${slug}/follow`}>Stories we're following</a><a href={`/${slug}/weekend`}>This weekend</a><a href={`/${slug}/events`}>Events calendar</a><a href={`/${slug}/sports`}>Sports</a><a href={`/${slug}/pickem`}>Pick'em</a><a href={`/${slug}/quiz`}>Weekly quiz</a><a href={`/${slug}/photos`}>Photo of the week</a>
+        <a href={`/${slug}/meetings`}>Public meetings</a><a href={`/${slug}/roads`}>Roads and outages</a><a href={`/${slug}/guide`}>The Guide</a><a href={`/${slug}/homes`}>Homes and money</a>
+        <a href={`/${slug}/obituaries`}>Obituaries</a><a href={`/${slug}/faith`}>Churches and community</a><a href={`/${slug}/pets`}>Lost and found pets</a><a href={`/${slug}/101`}>Cleburne 101</a>
+        <a href={`/${slug}/officials`}>Who represents you</a><a href="/submit">Send a tip</a><a href="/advertise">Advertise</a>
+      </div>
+    </details>
+  </div></header>
+  {alerts.length > 0 && <div class="wire"><div class="wrap"><span class="dot" aria-hidden="true"></span>
+    <a href={`/${slug}/s/${alerts[0].id}`}>{alerts[0].title}</a>
+    {alerts.length > 1 && <a href={`/${slug}/weather`} style="opacity:.85">+{alerts.length - 1} more</a>}
+  </div></div>}
+  <main class="wrap"><slot /></main>
+  <footer><div class="wrap">
+    <div class="join" id="join">
+      <h3>The {town?.name ?? "Cleburne"} morning email</h3>
+      <p>Every weekday at 7. The day's news, weather and what's going on, in five minutes. Free.</p>
+      <form method="post" action="/api/subscribe"><input type="hidden" name="town" value={slug} /><input type="email" name="email" placeholder="Your email" required aria-label="Email address" /><button class="btn">Subscribe</button></form>
+    </div>
+    <div class="fcols">
+      <div><b>News</b><a href={`/${slug}`}>Top stories</a><a href={`/${slug}/news`}>Local news</a><a href={`/${slug}/crime`}>Police and crime</a><a href={`/${slug}/weather`}>Weather</a><a href={`/${slug}/obituaries`}>Obituaries</a><a href={`/${slug}/sports`}>Sports</a></div>
+      <div><b>Around town</b><a href={`/${slug}/events`}>Events</a><a href={`/${slug}/weekend`}>This weekend</a><a href={`/${slug}/guide`}>The Guide</a><a href={`/${slug}/faith`}>Churches and community</a><a href={`/${slug}/openings`}>Opening and closing</a><a href={`/${slug}/pets`}>Lost and found pets</a><a href={`/${slug}/photos`}>Photo of the week</a><a href={`/${slug}/quiz`}>Weekly quiz</a><a href={`/${slug}/pickem`}>Pick'em</a></div>
+      <div><b>Civic</b><a href={`/${slug}/meetings`}>Public meetings</a><a href={`/${slug}/officials`}>Who represents you</a><a href={`/${slug}/schools`}>Schools</a><a href={`/${slug}/roads`}>Roads and outages</a><a href={`/${slug}/101`}>Cleburne 101</a><a href={`/${slug}/homes`}>Homes and money</a></div>
+      <div><b>Cleburne Wire</b><a href="/about">What we cover</a><a href="/submit">Send a tip</a><a href={`/${slug}/jobs`}>Jobs</a><a href="/advertise">Advertise</a><a href="/partners">News box for your site</a><a href="/search">Search</a><a href="https://www.facebook.com/CleburneWire" rel="noopener">Facebook</a></div>
+    </div>
+    <div class="fbase"><span class="brand">{town?.name ?? "Cleburne"} <span>Wire</span></span><span>Local news for {town?.name ?? "Cleburne"}, Texas. Every story links to its original source. Corrections: <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a></span></div>
+  </div></footer>
+  <script is:inline>
+    // Referral: remember who shared the site with this visitor, and credit them on signup
+    (function(){try{var m=document.cookie.match(/(?:^|; )cw_ref=([0-9a-f]{8})/);var q=new URLSearchParams(location.search).get('ref');var r=(q&&/^[0-9a-f]{8}$/.test(q))?q:(m&&m[1]);
+      if(r){document.querySelectorAll('form[action="/api/subscribe"]').forEach(function(f){if(!f.querySelector('input[name=ref]')){var i=document.createElement('input');i.type='hidden';i.name='ref';i.value=r;f.appendChild(i);}});}}catch(e){}})();
+  </script>
+  <script is:inline>
+    // Count a view for each sponsor slot actually shown on screen (once per page view)
+    (function(){var seen={};var obs='IntersectionObserver' in window?new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isIntersecting)return;var m=(e.target.getAttribute('href')||'').match(/^\/go\/([0-9a-f-]{36})/);if(m&&!seen[m[1]]){seen[m[1]]=1;navigator.sendBeacon&&navigator.sendBeacon('/v/'+m[1]);}obs.unobserve(e.target);});},{threshold:.5}):null;
+    document.querySelectorAll('a[href^="/go/"]').forEach(function(a){obs&&obs.observe(a);});})();
+  </script>
+  <script is:inline>
+    // Count this visit (no cookies): where they came from, one random id per browser, phone or desktop
+    (function(){ try{ var q=new URLSearchParams(location.search), r=document.referrer||'', src=q.get('utm_source');
+      if(!src){ src = /facebook\.com|fb\.me|instagram\.com/i.test(r)?'facebook' : /google\./i.test(r)?'google' : /bing\.|duckduckgo|yahoo\./i.test(r)?'search' : /mailerlite|mlsend|mail\./i.test(r)?'email' : (r && r.indexOf(location.hostname)<0)?'other' : r?'internal':'direct'; }
+      var k='cw_vid', v=localStorage.getItem(k); if(!v){ v=(crypto.randomUUID?crypto.randomUUID():String(Math.random()).slice(2)+Date.now()); localStorage.setItem(k,v); }
+      if(src==='internal') src=sessionStorage.getItem('cw_src')||'direct'; else sessionStorage.setItem('cw_src',src);
+      var body=JSON.stringify({p:location.pathname,s:src,v:v,d:(innerWidth<760?'phone':'desktop')});
+      navigator.sendBeacon ? navigator.sendBeacon('/api/hit', new Blob([body],{type:'application/json'})) : fetch('/api/hit',{method:'POST',headers:{'content-type':'application/json'},body:body,keepalive:true});
+    }catch(e){} })();
+  </script>
+</body></html>

@@ -1,0 +1,29 @@
+---
+import { timeGroup, fmtTime, getAds, niceTitle } from "../lib/db";
+import HouseAd from "./HouseAd.astro";
+const { stories, town, category } = Astro.props;
+const ad = (category ? await getAds(town.id, "category-sponsor", category) : null) ?? await getAds(town.id, "in-feed");
+const FN = import.meta.env.PUBLIC_SUPABASE_URL + "/functions/v1";
+let lastGroup = "";
+// Never show the same headline twice on one page (recurring events, re-reported stories)
+const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+const seenTitles = new Set<string>();
+const list = (stories ?? []).filter((s: any) => { const k = norm(s.title); if (seenTitles.has(k)) return false; seenTitles.add(k); return true; });
+---
+{list.length === 0 && <p class="empty">Nothing here yet. Sources are checked every 15 minutes. <a href="/submit">Send a tip</a>.</p>}
+{list.map((s, i) => {
+  const g = timeGroup(s.published_at); const showGroup = g !== lastGroup; lastGroup = g;
+  const lead = i === 0 && !!category;
+  return <>
+    {showGroup && !lead && <h4 class="group">{g}</h4>}
+    {i === 5 && (ad ? <a class="sponsor" href={`/go/${ad.id}`} rel="sponsored"><small>Sponsored</small><b>{ad.headline}</b>{ad.body}</a> : <HouseAd {town} />)}
+    <article class={`story ${lead ? "lead" : ""}`}>
+      <div>
+        <h2><a href={`/${town.slug}/s/${s.id}`}>{niceTitle(s.title)}</a></h2>
+        {s.summary && <p>{s.summary}</p>}
+        <div class="meta">{s.event_at ? <><b>{fmtTime(s.event_at)}</b>{s.location && <span>{s.location.split(",").slice(0,2).join(",")}</span>}</> : <><b class={`c-${s.category}`}>{s.category.replace("-", " ")}</b><span>{s.source_name ?? "Cleburne Wire"}</span><time>{fmtTime(s.published_at)}</time></>}</div>
+      </div>
+      {s.image_url ? <img referrerpolicy="no-referrer" class="img" src={s.image_url} alt="" loading={lead ? "eager" : "lazy"} onerror="this.onerror=null;this.remove()" /> : null}
+    </article>
+  </>;
+})}

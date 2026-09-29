@@ -1,0 +1,24 @@
+---
+import Page from "../../components/Page.astro";
+import Base from "../../layouts/Base.astro";
+import { getTown, getAlerts, getFeed, sb, fmtTime } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const [alerts, posted, feed] = await Promise.all([getAlerts(town.id),
+  sb.from("submissions").select("id,name,payload,created_at,paid").eq("status","approved").eq("kind","job").eq("town_id", town.id).order("paid",{ascending:false}).order("created_at",{ascending:false}).limit(50),
+  getFeed(town.id, "jobs", 20)]);
+const jobs = posted.data ?? [];
+Astro.response.headers.set("Cache-Control", "public, max-age=900, s-maxage=900");
+---
+<Base title={`Jobs in ${town.name}, TX — hiring now`} {town} {alerts} desc={`Local job openings in ${town.name}, posted by employers and updated daily.`}>
+  <Page {town} title={`Jobs in ${town.name}`} dek="Openings from local employers, plus hiring news. Posting a job is free for 30 days.">
+    {jobs.length === 0 && <div class="empty-cta"><b>Hiring in {town.name}?</b><p>Post your opening free for 30 days. It shows here, and the best ones go in the morning email.</p><a class="btn" href="/submit?kind=job">Post a job free</a></div>}
+    <div class="util-grid">
+      <div class="util"><b>Cleburne ISD jobs</b><span>Teaching, support and substitute positions.</span><a href="https://www.c-isd.com/departments/human-resources" target="_blank" rel="noopener">District hiring page</a></div>
+      <div class="util"><b>City of {town.name} jobs</b><span>Police, fire, utilities, parks and office positions.</span><a href="https://www.cleburne.net" target="_blank" rel="noopener">City website</a></div>
+      <div class="util"><b>WorkInTexas</b><span>The state's free job board, searchable by town.</span><a href="https://www.workintexas.com" target="_blank" rel="noopener">Search local jobs</a></div>
+    </div>
+    {jobs.length > 0 && <h3 class="group">Openings</h3>}
+    {jobs.map((j) => <article class="story"><div><h2>{j.payload.title}{j.paid && <span class="badge">Featured</span>}</h2><p>{j.payload.details}</p><div class="meta"><b>{j.name ?? "Local employer"}</b>{j.payload.where && <span>{j.payload.where}</span>}<time>{fmtTime(j.created_at)}</time></div></div></article>)}
+    {feed.length > 0 && <><h3 class="group">Hiring news</h3><ul class="plain">{feed.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a><small>{s.source_name}, {fmtTime(s.published_at)}</small></li>)}</ul></>}
+  </Page>
+</Base>

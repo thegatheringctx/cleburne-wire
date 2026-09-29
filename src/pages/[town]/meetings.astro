@@ -1,0 +1,37 @@
+---
+import Base from "../../layouts/Base.astro";
+import Page from "../../components/Page.astro";
+import { getAds, getTown, getAlerts, sb, fmtTime } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const now = new Date();
+const isMeeting = "title.ilike.%agenda%,title.ilike.%meeting%,title.ilike.%board%,title.ilike.%council%,title.ilike.%commission%,source_url.ilike.%AgendaCenter%,source_url.ilike.%boardbook%,tags.cs.{agenda}";
+const [alerts, upRes, pastRes] = await Promise.all([
+  getAlerts(town.id),
+  sb.from("stories").select("id,title,summary,body,event_at,location,source_url,source_name,category").eq("status","published").in("category",["government","schools"]).gte("event_at", new Date(now.getTime() - 3 * 36e5).toISOString()).or(isMeeting).order("event_at").limit(30),
+  sb.from("stories").select("id,title,event_at,source_url,category").eq("status","published").in("category",["government","schools"]).lt("event_at", now.toISOString()).gte("event_at", new Date(now.getTime() - 21 * 864e5).toISOString()).or(isMeeting).order("event_at",{ascending:false}).limit(15),
+]);
+const up = upRes.data ?? []; const past = pastRes.data ?? [];
+const d = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", ...o });
+const body = (b: string) => (b ?? "").split("\n").filter(Boolean);
+const presented = await getAds(town.id, "category-sponsor", "meetings");
+Astro.response.headers.set("Cache-Control", "public, max-age=900, s-maxage=900");
+---
+<Base title={`${town.name} public meetings: council, P&Z, school board`} {town} {alerts} desc={`Upcoming ${town.name} city council, planning and zoning, and school board meetings, with plain-English agenda briefs posted the day before.`}>
+  <Page {town} title="Public meetings" dek={`What ${town.name}'s council, commissions and school board will decide, in plain English, before they meet. Briefs are written from the posted agenda.`}>
+    {presented && <a class="presented-by" href={`/go/${presented.id}`} rel="sponsored"><span>Presented by</span><b>{presented.headline}</b></a>}
+    {up.length === 0 && <p class="empty">No agendas posted for the next few days. Agendas usually post 72 hours before a meeting.</p>}
+    {up.map((m) => <article class="meeting">
+      <div class="when"><div class="d"><span>{d(m.event_at,{weekday:"short"})}</span><b>{d(m.event_at,{day:"numeric"})}</b></div>
+      <div>
+        <div class="kicker"><span>{d(m.event_at,{month:"long",day:"numeric"})}, {d(m.event_at,{hour:"numeric",minute:"2-digit"})}</span>{m.location && <span>{m.location}</span>}</div>
+        <h2><a href={`/${town.slug}/s/${m.id}`}>{m.title}</a></h2>
+        {m.body ? <div class="brief">{body(m.body).map((l) => l.startsWith("- ") ? <p class="item">{l.slice(2)}</p> : <p>{l}</p>)}</div> : m.summary && <p>{m.summary}</p>}
+        {m.source_url && <p class="meta"><a href={m.source_url} target="_blank" rel="noopener nofollow">Read the full agenda</a></p>}
+      </div></div>
+    </article>)}
+    {past.length > 0 && <><h3 class="group">Recent meetings</h3>
+      <ul class="plain">{past.map((m) => <li><a href={`/${town.slug}/s/${m.id}`}>{m.title}</a><small>{d(m.event_at,{month:"short",day:"numeric"})}{m.source_url && <> <a href={m.source_url} target="_blank" rel="noopener nofollow" style="color:var(--navy-2)">Agenda</a></>}</small></li>)}</ul></>}
+    <p><a class="btn ghost" href={`/${town.slug}/officials`}>Who represents you</a></p>
+    <div class="notice" style="margin-top:2rem"><b>Want to speak at a meeting?</b> Public hearings are open to anyone. Arrive before the meeting starts and fill out a speaker card at City Hall, 10 N. Robinson St., or check the agenda for school board comment rules.</div>
+  </Page>
+</Base>

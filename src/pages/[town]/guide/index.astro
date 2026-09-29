@@ -1,0 +1,29 @@
+---
+import Page from "../../../components/Page.astro";
+import Base from "../../../layouts/Base.astro";
+import BizRow from "../../../components/BizRow.astro";
+import { getTown, getAlerts, getDirCategories, getBusinesses } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const [alerts, cats, all] = await Promise.all([getAlerts(town.id), getDirCategories(), getBusinesses(town.id, undefined, 3000)]);
+const counts = Object.fromEntries(cats.map((c) => [c.slug, all.filter((b) => b.category === c.slug).length]));
+const groups = [...new Set(cats.map((c) => c.group_name))];
+const cover = Object.fromEntries(cats.map((c) => [c.slug, all.filter((b) => b.category === c.slug && b.image_url && (b.rating ?? 0) >= 4).sort((a, b) => (b.rating_count ?? 0) - (a.rating_count ?? 0))[0]?.image_url ?? null]));
+const ICON: Record<string, string> = { restaurants: "utensils", bbq: "flame", mexican: "chef-hat", burgers: "sandwich", "pizza-italian": "pizza", breakfast: "egg-fried", coffee: "coffee", bakeries: "cake-slice", bars: "beer", shopping: "shopping-bag", antiques: "armchair", grocery: "shopping-cart", "things-to-do": "ticket", parks: "trees", kids: "party-popper", salons: "scissors", fitness: "dumbbell", "auto-repair": "wrench", "home-services": "hammer", pets: "paw-print", health: "stethoscope", "real-estate": "house", mortgage: "landmark", insurance: "shield-check", "car-dealers": "car", churches: "church", schools: "graduation-cap" };
+const G: Record<string, string> = { "Eat & Drink": "events", "Shop": "business", "Play": "sports", "Services": "roads", "Money & Home": "real-estate", "Community": "community" };
+const top = all.filter((b) => b.rating >= 4.5 && b.rating_count >= 50).slice(0, 6);
+Astro.response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600");
+---
+<Base title={`${town.name} Guide — where to eat, shop, and go in ${town.name}, TX`} {town} {alerts} desc={`The local guide to ${town.name}: restaurants, coffee, shopping, things to do, realtors, banks and car dealers, ranked by real reviews.`}>
+  <Page {town} title={`The ${town.name} Guide`} dek={`${all.length} places to eat, shop and get things done, ranked by what locals say. Updated weekly.`}>
+    <form class="search-form" method="get" action="/search" style="margin:0 0 1.6rem"><input name="q" placeholder="Find a place: tacos, oil change, dentist..." aria-label="Search the Guide" /><button class="btn">Search</button></form>
+    {groups.map((g) => <section class={`gsec c-${G[g] ?? "news"}`}>
+      <h3 class="group">{g.replace("&", "and")}</h3>
+      <div class="gtiles">{cats.filter((c) => c.group_name === g && counts[c.slug]).map((c) => <a class="gtile" href={`/${town.slug}/guide/${c.slug}`}>
+        {cover[c.slug] ? <img referrerpolicy="no-referrer" src={cover[c.slug]} alt="" loading="lazy" onerror="this.onerror=null;this.remove()" /> : <span class="gph"><i style={`--ico:url(/icons/${ICON[c.slug] ?? "ticket"}.svg)`}></i></span>}
+        <b>{c.name}</b><small>{counts[c.slug]} {counts[c.slug] === 1 ? "place" : "places"}</small>
+      </a>)}</div>
+    </section>)}
+    {top.length > 0 && <><h3 class="group">Local favorites right now</h3>{top.map((b, i) => <BizRow {b} {i} {town} />)}</>}
+    <div class="notice" style="margin-top:2rem"><b>Own a business here?</b> Claim your listing to add photos, hours and specials, or get featured at the top of your category. <a href="/advertise">See options</a></div>
+  </Page>
+</Base>

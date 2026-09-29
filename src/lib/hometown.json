@@ -1,0 +1,42 @@
+[
+ {
+  "file": "/img/courthouse.webp",
+  "label": "The Johnson County Courthouse",
+  "credit": "25or6to4",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File:Johnson_County_Courthouse_(2018),_Cleburne,_TX.jpg",
+  "pos": "center 30%"
+ },
+ {
+  "file": "/img/hometown/downtown.webp",
+  "label": "Downtown Cleburne skyline",
+  "credit": "CTUS1867",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Downtown_Cleburne.png",
+  "pos": "center 55%"
+ },
+ {
+  "file": "/img/hometown/carnegie.webp",
+  "label": "The Carnegie Library",
+  "credit": "Larry D. Moore",
+  "license": "CC BY 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File:Carnegie_library_cleburne_2010.jpg",
+  "pos": "center 35%"
+ },
+ {
+  "file": "/img/hometown/city-hall.webp",
+  "label": "Cleburne City Hall",
+  "credit": "CTUS1867",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Cleburne_Texas_City_Hall.png",
+  "pos": "center 55%"
+ },
+ {
+  "file": "/img/hometown/cedar-lake.webp",
+  "label": "Cedar Lake, Cleburne State Park",
+  "credit": "Michael Barera",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File:Cleburne_State_Park_October_2020_17_(Cedar_Lake).jpg",
+  "pos": "center 50%"
+ }
+]

@@ -1,0 +1,55 @@
+---
+import Base from "../../layouts/Base.astro";
+import Page from "../../components/Page.astro";
+import { getTown, getAlerts } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const alerts = await getAlerts(town.id);
+const map = (q: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q + ", " + town.name + ", TX")}`;
+const G = (slug: string) => `/${town.slug}/guide/${slug}`;
+Astro.response.headers.set("Cache-Control", "public, max-age=86400, s-maxage=86400");
+---
+<Base title={`${town.name} 101: a practical guide for residents and newcomers`} {town} {alerts} desc={`New to ${town.name}, TX? Utilities, city services, schools, parks, health care and who to call, in one page.`}>
+  <Page {town} title={`${town.name} 101`} dek={`Everything you need to get set up in ${town.name}: utilities, city services, schools, parks and who to call. Each item links to the official source.`}>
+    <div class="handbook">
+    <section><h3 class="group">Get your utilities on</h3>
+      <div class="util-grid">
+        <div class="util"><b>Water, sewer and trash</b><span>Provided by the City of {town.name}. Start service with City utility billing.</span><a href="https://www.cleburne.net" target="_blank" rel="noopener">City of {town.name}</a><span>City Hall, 10 N. Robinson St., 817-645-0908</span></div>
+        <div class="util"><b>Electricity</b><span>Most homes pick a retail provider. Oncor owns the lines and handles outages. Some rural addresses are on a co-op.</span><a href="https://www.powertochoose.org" target="_blank" rel="noopener">Compare plans at Power to Choose</a></div>
+        <div class="util"><b>Natural gas</b><span>Atmos Energy serves {town.name}.</span><a href="https://www.atmosenergy.com" target="_blank" rel="noopener">Start service with Atmos</a></div>
+      </div></section>
+    <section><h3 class="group">City services</h3>
+      <div class="util-grid">
+        <div class="util"><b>City Hall</b><span>Permits, utility billing, municipal court, animal services and code questions start here.</span><a href={map("10 N. Robinson St.")} target="_blank" rel="noopener">10 N. Robinson St.</a><span>817-645-0908</span></div>
+        <div class="util"><b>City council and meetings</b><span>What's on the agenda before every meeting, in plain English.</span><a href={`/${town.slug}/meetings`}>Public meetings</a></div>
+        <div class="util"><b>Who represents you</b><span>Mayor, council district, county, state and federal.</span><a href={`/${town.slug}/officials`}>See your officials</a></div>
+        <div class="util"><b>Roads, outages and alerts</b><span>Closures, power and gas outages, weather alerts.</span><a href={`/${town.slug}/roads`}>Roads and outages</a></div>
+      </div></section>
+    <section><h3 class="group">Schools and library</h3>
+      <div class="util-grid">
+        <div class="util"><b>{town.name} ISD</b><span>Enrollment, calendars, bus routes and board meetings.</span><a href="https://www.c-isd.com" target="_blank" rel="noopener">District website</a></div>
+        <div class="util"><b>All schools and childcare</b><span>Public, private and childcare listings in the Guide.</span><a href={G("schools")}>Browse schools</a></div>
+        <div class="util"><b>Public library</b><span>Free card for residents: books, e-books, programs and storytimes.</span><a href={map("Cleburne Public Library, 302 W. Henderson St.")} target="_blank" rel="noopener">302 W. Henderson St.</a></div>
+      </div></section>
+    <section><h3 class="group">Health care</h3>
+      <div class="util-grid">
+        <div class="util"><b>Emergencies</b><span>Call 911 for police, fire or medical emergencies.</span></div>
+        <div class="util"><b>Doctors, dentists and pharmacies</b><span>Every clinic and pharmacy in town, with hours and directions.</span><a href={G("health")}>Browse health care</a></div>
+        <div class="util"><b>Pets</b><span>Veterinarians, pet stores, and lost and found.</span><a href={G("pets")}>Vets and pet care</a><a href={`/${town.slug}/pets`}>Lost and found pets</a></div>
+      </div></section>
+    <section><h3 class="group">Things to do</h3>
+      <div class="util-grid">
+        <div class="util"><b>Parks and outdoors</b><span>City parks, Lake Pat Cleburne and nearby Cleburne State Park.</span><a href={G("parks")}>Parks and recreation</a></div>
+        <div class="util"><b>Museums and attractions</b><span>Local history, the library, and family outings.</span><a href={G("things-to-do")}>Things to do</a></div>
+        <div class="util"><b>This weekend</b><span>Updated every Thursday with what's happening.</span><a href={`/${town.slug}/weekend`}>Weekend guide</a></div>
+        <div class="util"><b>Where to eat</b><span>Ranked by what locals say.</span><a href={G("restaurants")}>Restaurants</a></div>
+      </div></section>
+    <section><h3 class="group">Get connected</h3>
+      <div class="util-grid">
+        <div class="util"><b>Churches</b><span>Every congregation in town, alphabetical.</span><a href={`/${town.slug}/faith`}>Faith and community</a></div>
+        <div class="util"><b>Volunteer and give</b><span>Food pantries, nonprofits and service events.</span><a href={`/${town.slug}/faith`}>Community calendar</a></div>
+        <div class="util gold"><b>Know what's happening</b><span>{town.name} news and weather at 7 every weekday. Free.</span><a href="#join">Get the morning email</a></div>
+      </div></section>
+    </div>
+    <p class="fix">Something here out of date? <a href="mailto:news@cleburnewire.com?subject=Cleburne%20101%20correction">Tell us</a> and we'll fix it.</p>
+  </Page>
+</Base>

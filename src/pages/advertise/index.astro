@@ -1,0 +1,73 @@
+---
+import Base from "../../layouts/Base.astro";
+import { sb } from "../../lib/db";
+const L = {
+  boost: "https://buy.stripe.com/9B67sEgcQaj57DXfkDco004",
+  listing: "https://buy.stripe.com/9B6aEQ4u80Iv2jDfkDco003",
+  partner: "https://buy.stripe.com/cNi6oAgcQ4YLbUdegzco005",
+  section: "https://buy.stripe.com/4gM28k3q4aj50bv6O7co006",
+  email: "https://buy.stripe.com/14A5kw4u876T3nHb4nco007",
+};
+const [{ data: taken }, { count: subs }, { count: founders }, { count: biz }, { count: partners }] = await Promise.all([
+  sb.from("ads").select("category,placement").eq("active", true).in("placement", ["category-sponsor", "newsletter"]),
+  sb.from("subscribers").select("id", { count: "exact", head: true }),
+  sb.from("sponsors").select("id", { count: "exact", head: true }).eq("active", true),
+  sb.from("businesses").select("id", { count: "exact", head: true }).eq("active", true),
+  sb.from("sponsors").select("id", { count: "exact", head: true }).eq("active", true).eq("plan", "partner"),
+]);
+const partnersLeft = Math.max(0, 5 - (partners ?? 0));
+const sold = new Set((taken ?? []).filter((a) => a.placement === "category-sponsor").map((a) => a.category));
+const emailSold = (taken ?? []).some((a) => a.placement === "newsletter" && a.category === "presenting");
+const SECTIONS = [["sports", "Sports and Yellow Jackets"], ["obituaries", "Obituaries"], ["homes", "Homes and money"], ["meetings", "Public meetings"], ["weekend", "Weekend guide"]];
+const open = SECTIONS.filter(([k]) => !sold.has(k));
+const foundingLeft = Math.max(0, 10 - (founders ?? 0));
+const readers = (await sb.rpc("readers_30d")).data ?? 0;
+const showAudience = (subs ?? 0) >= 250 || readers >= 2000;
+Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
+---
+<Base title="Advertise on Cleburne Wire: reach Cleburne every day" desc="Sponsor Cleburne's daily local news. Event boosts from $25, featured listings from $30 a month, and exclusive section and email sponsorships. Founding rates, cancel anytime.">
+  <header class="page-head"><h1>Reach Cleburne every day</h1>
+    <p class="dek">Cleburne Wire is where Cleburne checks the news, scores, meetings and weekend plans. Put your business in front of neighbors, not strangers.</p></header>
+
+  {foundingLeft > 0 && <div class="founding"><b>Founding sponsor rate: {foundingLeft} of 10 spots left.</b> Lock today's price for 12 months. Month to month, cancel anytime.</div>}
+
+  <section class="tiers">
+    <div class="tier"><span class="t-name">Event Boost</span><div class="t-price">$25<small> one time</small></div>
+      <ul><li>Your event at the top of Events and the Weekend Guide</li><li>Runs 2 weeks</li><li>Great for fundraisers, openings and shows</li></ul>
+      <a class="btn ghost" href={L.boost}>Boost an event</a></div>
+    <div class="tier"><span class="t-name">Featured Listing</span><div class="t-price">$30<small>/mo</small></div>
+      <ul><li>Top of your category in the Guide, with a Featured badge</li><li>Your hours, phone and directions front and center</li><li>Shown to people ready to buy</li></ul>
+      <a class="btn ghost" href={L.listing}>Get featured</a></div>
+    <div class="tier best"><span class="t-flag">Best value</span><span class="t-name">Local Partner</span><div class="t-price">$149<small>/mo</small></div>
+      <ul><li>Everything in Featured Listing</li><li>Your ad across the site, in the news feed and sidebar</li><li>Your own day in the morning email every week (5 partners max)</li><li>Live results page and a monthly report</li></ul>
+      <p class="avail">{partnersLeft ? `${partnersLeft} of 5 spots open` : "All 5 spots are taken. Ask to join the waitlist."}</p>
+      {partnersLeft ? <a class="btn" href={L.partner}>Become a Local Partner</a> : <a class="btn ghost" href="mailto:news@cleburnewire.com?subject=Local%20Partner%20waitlist">Join the waitlist</a>}</div>
+    <div class="tier"><span class="t-name">Section Sponsor</span><div class="t-price">$249<small>/mo</small></div>
+      <ul><li>"Presented by" on one whole section, one sponsor each</li><li>Your name on every page of that section, all month, on phones and desktop</li></ul>
+      <p class="avail">{open.length ? <>Open: {open.map(([, n]) => n).join(", ")}</> : "All sections are taken. Ask to join the waitlist."}</p>
+      {open.length > 0 ? <a class="btn ghost" href={L.section}>Claim a section</a> : <a class="btn ghost" href="mailto:news@cleburnewire.com?subject=Section%20waitlist">Join the waitlist</a>}</div>
+    <div class="tier"><span class="t-name">Morning Email Presenting Sponsor</span><div class="t-price">$299<small>/mo</small></div>
+      <ul><li>The top slot in every weekday morning email</li><li>One sponsor only</li><li>The first thing Cleburne reads at 7</li></ul>
+      <p class="avail">{emailSold ? "Taken. Ask to join the waitlist." : "Available now"}</p>
+      {emailSold ? <a class="btn ghost" href="mailto:news@cleburnewire.com?subject=Email%20sponsor%20waitlist">Join the waitlist</a> : <a class="btn ghost" href={L.email}>Present the morning email</a>}</div>
+  </section>
+
+  <div class="single">
+    <h3 class="group">Why it works</h3>
+    <div class="util-grid">
+      <div class="util"><b>Local, not national</b><span>Every reader lives here. No wasted clicks from three states away.</span></div>
+      <div class="util"><b>See your results</b><span>A private page shows how often your ad was seen and clicked, updated live, plus a monthly report by email.</span></div>
+      <div class="util"><b>No contracts</b><span>Month to month. Cancel from your receipt anytime.</span></div>
+      <div class="util"><b>Live the same day</b><span>Pay online and your ad goes up automatically, built from your business name and website. Email changes anytime.</span></div>
+    </div>
+    {showAudience && <div class="util-grid">{readers >= 2000 && <div class="util gold"><b style="font-size:2.2rem">{readers.toLocaleString()}</b><span>readers in the last 30 days</span></div>}{(subs ?? 0) >= 250 && <div class="util gold"><b style="font-size:2.2rem">{(subs ?? 0).toLocaleString()}</b><span>morning email subscribers</span></div>}<div class="util"><b style="font-size:2.2rem">{(biz ?? 0).toLocaleString()}</b><span>local businesses in the Guide</span></div></div>}
+
+    <h3 class="group">Questions</h3>
+    <dl class="faq">
+      <dt>What does my ad look like?</dt><dd>Your business name, a one-line description and a link, in our site's style so it reads cleanly. We write the first version from your website; send us a different line or a logo anytime at news@cleburnewire.com.</dd>
+      <dt>Is my content ever affected by sponsoring?</dt><dd>No. Sponsors never influence what we report. Ads are always labeled.</dd>
+      <dt>What won't you run?</dt><dd>Political campaign ads, adult content, vaping or payday lending. We keep it family-friendly.</dd>
+      <dt>Can I bundle or pay yearly?</dt><dd>Yes. Email news@cleburnewire.com and we'll set up a custom package.</dd>
+    </dl>
+  </div>
+</Base>

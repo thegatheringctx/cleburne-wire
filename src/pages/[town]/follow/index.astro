@@ -1,0 +1,14 @@
+---
+import Base from "../../../layouts/Base.astro";
+import Page from "../../../components/Page.astro";
+import { getTown, getAlerts, sb } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const [alerts, { data: lines }] = await Promise.all([getAlerts(town.id), sb.from("storylines").select("slug,title,summary,updated_at,storyline_stories(count)").eq("town_id", town.id).eq("status", "active").order("updated_at", { ascending: false })]);
+Astro.response.headers.set("Cache-Control", "public, max-age=900, s-maxage=900");
+---
+<Base title={`Stories we're following in ${town.name}`} {town} {alerts} desc={`The ongoing stories in ${town.name}, each with a plain-English summary and a timeline of every development.`}>
+  <Page {town} title="Stories we're following" dek={`The ongoing stories in ${town.name}. Each has a what-to-know summary and a timeline, updated daily.`}>
+    {(lines ?? []).length === 0 && <p class="empty">No ongoing stories right now.</p>}
+    <div class="fl-grid">{(lines ?? []).map((l: any) => <a class="fl" href={`/${town.slug}/follow/${l.slug}`}><b>{l.title}</b><p>{l.summary}</p><small>{l.storyline_stories?.[0]?.count ?? 0} stories. Follow this story</small></a>)}</div>
+  </Page>
+</Base>
