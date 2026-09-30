@@ -30,6 +30,7 @@ Astro.response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600
   <Page {town} title={b.name} dek={b.address ?? null} crumbs={[{ label: "Guide", href: `/${town.slug}/guide` }, { label: cat?.name ?? "Listings", href: `/${town.slug}/guide/${b.category}` }]}>
     {b.image_url && <img referrerpolicy="no-referrer" class="thumb" src={b.image_url} alt="" style="margin-bottom:1.2rem" onerror="this.onerror=null;this.remove()" />}
     {b.tier === "featured" && <span class="badge" style="margin:0 0 1rem">Featured</span>}
+    {b.tier !== "featured" && b.category !== "churches" && <div class="notice" style="margin:0 0 1.2rem"><b>Own {b.name}?</b> This listing is free. <a href={`/${town.slug}/biz/update?b=${b.slug}`}>Add your photo, hours and website</a>, or <a href="/advertise">move to the top of {cat?.name ?? "your category"}</a> with a Featured Listing for $30 a month.</div>}
     {b.rating != null && <div class="hero-stat"><b>{Number(b.rating).toFixed(1)}</b><span><span class="stars">{stars(b.rating)}</span><br/>{b.rating_count} Google reviews{b.price_level ? `, ${price(b.price_level)}` : ""}</span></div>}
     {b.description && <p style="font-size:1.08rem">{b.description}</p>}
     {b.category === "churches" && <div class="notice"><b>Service times:</b> {b.service_times ?? "Not listed yet."}{b.kids_ministry ? " Nursery or kids program available." : ""}{b.languages ? ` Languages: ${b.languages}.` : ""} <a href={`/${town.slug}/faith/update?c=${b.slug}`}>{b.service_times ? "Update" : "Add service times"}</a></div>}
@@ -44,6 +45,5 @@ Astro.response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600
 
     {(news ?? []).length > 0 && <><h3 class="group">In the news</h3><ul class="plain">{news!.map((n: any) => <li><a href={`/${town.slug}/s/${n.id}`}>{n.title}</a><small>{new Date(n.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" })}</small></li>)}</ul></>}
     {nearby.length > 0 && <><h3 class="group">Nearby {cat?.name ? cat.name.toLowerCase() : "places"}</h3>{nearby.map((x: any) => <BizRow b={x} i={null} {town} />)}</>}
-    <div class="notice" style="margin-top:2rem"><b>Is this your business?</b> Add your website, photo and phone free. <a href={`/${town.slug}/biz/update?b=${b.slug}`}>Update this listing</a>. Want to be first in your category? <a href="/advertise">Get featured</a>.</div>
   </Page>
 </Base>
