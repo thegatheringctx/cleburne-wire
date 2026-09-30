@@ -6,7 +6,10 @@ import { getBoosts, getTown, getFeed, getAlerts, getCategories } from "../../lib
 const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
 const cats = await getCategories(); const cat = cats.find((c) => c.slug === Astro.params.category);
 if (!cat) return Astro.rewrite("/404");
-const [raw, alerts] = await Promise.all([getFeed(town.id, cat.slug, cat.slug === "events" ? 200 : 60), getAlerts(town.id)]);
+// "Local news" is the everything-local feed: all news categories, minus listings-style sections that have their own pages.
+const NOT_NEWS = ["events", "weather", "obituaries", "jobs", "pets", "sports"];
+const [raw0, alerts] = await Promise.all([getFeed(town.id, cat.slug === "news" ? undefined : cat.slug, cat.slug === "events" ? 200 : cat.slug === "news" ? 120 : 60), getAlerts(town.id)]);
+const raw = cat.slug === "news" ? raw0.filter((s: any) => !NOT_NEWS.includes(s.category)).slice(0, 60) : raw0;
 // Events: soonest first, upcoming only (recurring classes collapse to their next date in Feed)
 const stories = cat.slug === "events"
   ? raw.filter((s: any) => s.event_at && new Date(s.event_at).getTime() > Date.now() - 36e5).sort((a: any, b: any) => +new Date(a.event_at) - +new Date(b.event_at))
@@ -30,7 +33,10 @@ const DEKS: Record<string, string> = {
   pets: `Lost and found pets in ${town.name}. Post yours free.`,
 };
 const boosts = cat.slug === "events" ? await getBoosts(town.id) : [];
-const dek = DEKS[cat.slug] ?? `${cat.name} in ${town.name}, TX.`;
+// Freshness stamp so a bookmarked section never looks abandoned
+const newest = cat.slug === "events" ? null : stories.reduce((m: number, x: any) => Math.max(m, +new Date(x.published_at)), 0);
+const ago = (t: number) => { const m = Math.max(1, Math.round((Date.now() - t) / 6e4)); return m < 60 ? `${m} minute${m === 1 ? "" : "s"} ago` : m < 1440 ? `${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? "" : "s"} ago` : `${Math.round(m / 1440)} day${Math.round(m / 1440) === 1 ? "" : "s"} ago`; };
+const dek = (DEKS[cat.slug] ?? `${cat.name} in ${town.name}, TX.`) + (newest ? ` Updated ${ago(newest)}.` : "");
 ---
 <Base title={`${cat.name} — ${town.name} Wire`} {town} {alerts} desc={dek}>
   <nav class="cats" aria-label="Sections"><a href={`/${town.slug}`}>Top stories</a>
