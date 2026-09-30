@@ -5,7 +5,7 @@ import BizRow from "../../../components/BizRow.astro";
 import Base from "../../../layouts/Base.astro";
 import { sb, phone as fmtPhone, getTown, getAlerts, getBusiness, getDirCategories, getAds, stars, price } from "../../../lib/db";
 const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
-const b = await getBusiness(Astro.params.slug!); if (!b) return Astro.rewrite("/404");
+const b = await getBusiness(Astro.params.slug!); if (!b || b.active === false) return Astro.rewrite("/404");
 const [alerts, cats, ad] = await Promise.all([getAlerts(town.id), getDirCategories(), getAds(town.id, "sidebar")]);
 const cat = cats.find((c) => c.slug === b.category);
 // In the news: stories that name this business (distinctive names only, so "Sonic" alone doesn't match everything)
@@ -17,15 +17,22 @@ const [{ data: news }, { data: near }] = await Promise.all([
 ]);
 const dist = (x: any) => Math.hypot((x.lat - b.lat) * 69, (x.lng - b.lng) * 58.5);
 const nearby = (near ?? []).filter((x: any) => x.lat).sort((a: any, c: any) => dist(a) - dist(c)).slice(0, 4);
+// schema.org type per Guide category, so search engines know what kind of place each listing is.
+// No aggregateRating: the stars are Google's, and Google's rules forbid marking up ratings collected elsewhere.
+const LD_TYPE: Record<string, string> = { restaurants: "Restaurant", bbq: "Restaurant", mexican: "Restaurant", burgers: "Restaurant", "pizza-italian": "Restaurant", breakfast: "Restaurant",
+  coffee: "CafeOrCoffeeShop", bakeries: "Bakery", bars: "BarOrPub", shopping: "Store", antiques: "Store", grocery: "GroceryStore", salons: "BeautySalon", fitness: "ExerciseGym",
+  "auto-repair": "AutoRepair", "home-services": "HomeAndConstructionBusiness", pets: "PetStore", health: "MedicalBusiness", "real-estate": "RealEstateAgent", mortgage: "FinancialService",
+  insurance: "InsuranceAgency", "car-dealers": "AutoDealer", churches: "Church", schools: "School", parks: "Park", "things-to-do": "TouristAttraction", kids: "EntertainmentBusiness" };
 const maps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.name + " " + (b.address ?? ""))}&query_place_id=${b.place_id ?? ""}`;
 Astro.response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600");
 ---
 <Base title={`${b.name} — ${town.name} Wire`} {town} {alerts} desc={`${b.name} in ${town.name}, TX: ${b.rating ? `${b.rating} stars from ${b.rating_count} reviews. ` : ""}${b.address ?? ""}`}>
   <script type="application/ld+json" set:html={JSON.stringify({
-    "@context": "https://schema.org", "@type": "LocalBusiness",
-    "name": b.name, "address": b.address ? { "@type": "PostalAddress", "streetAddress": b.address } : undefined,
-    "telephone": b.phone ?? undefined, "url": b.website ?? undefined,
-    ...(b.rating ? { "aggregateRating": { "@type": "AggregateRating", "ratingValue": b.rating, "reviewCount": b.rating_count ?? 1 } } : {}),
+    "@context": "https://schema.org", "@type": LD_TYPE[b.category] ?? "LocalBusiness",
+    "name": b.name, "@id": `https://cleburnewire.com/${town.slug}/biz/${b.slug}`,
+    "address": b.address ? { "@type": "PostalAddress", "streetAddress": b.address.split(",")[0], "addressLocality": town.name, "addressRegion": "TX", "addressCountry": "US" } : undefined,
+    "geo": b.lat ? { "@type": "GeoCoordinates", "latitude": b.lat, "longitude": b.lng } : undefined,
+    "image": b.image_url ?? undefined, "telephone": b.phone ?? undefined, "url": b.website ?? undefined,
   })} />
   <Page {town} title={b.name} dek={b.address ?? null} crumbs={[{ label: "Guide", href: `/${town.slug}/guide` }, { label: cat?.name ?? "Listings", href: `/${town.slug}/guide/${b.category}` }]}>
     {b.image_url && <img referrerpolicy="no-referrer" class="thumb" src={b.image_url} alt="" style="margin-bottom:1.2rem" onerror="this.onerror=null;this.remove()" />}
