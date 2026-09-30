@@ -1,4 +1,5 @@
 ---
+import { emailSendingOn } from "../../../lib/flags";
 import Rail from "../../../components/Rail.astro";
 import Base from "../../../layouts/Base.astro";
 import SubscribeBand from "../../../components/SubscribeBand.astro";
@@ -14,6 +15,7 @@ const { data: moreRows } = await sb.from("stories").select("id,title,published_a
 const more = moreRows ?? [];
 const { data: slLink } = await sb.from("storyline_stories").select("storylines(slug,title,summary,status)").eq("story_id", s.id).limit(1).maybeSingle();
 const storyline = (slLink as any)?.storylines?.status === "active" ? (slLink as any).storylines : null;
+const emailOn = await emailSendingOn();
 ---
 <Base title={`${s.title} — ${town.name} Wire`} {town} {alerts} desc={s.summary ?? s.title} image={`${import.meta.env.PUBLIC_SUPABASE_URL}/functions/v1/card?id=${s.id}`}>
   <script type="application/ld+json" set:html={JSON.stringify({
@@ -60,7 +62,7 @@ const storyline = (slLink as any)?.storylines?.status === "active" ? (slLink as 
   </div>
   <div class="sub-pop" hidden>
     <button class="sp-x" type="button" aria-label="Close">&times;</button>
-    <b>Get {town.name} news every morning</b><span>Free, at 7 every weekday. Unsubscribe anytime.</span>
+    <b>Get {town.name} news in your inbox</b><span>{emailOn ? "Free, at 7 every weekday. Unsubscribe anytime." : "Free. Join the list for the next edition. Unsubscribe anytime."}</span>
     <form method="post" action="/api/subscribe"><input type="hidden" name="town" value={town.slug} /><input type="email" name="email" required placeholder="Your email" aria-label="Email address" /><button class="btn">Subscribe</button></form>
   </div>
   <script is:inline>
