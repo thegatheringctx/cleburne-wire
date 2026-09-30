@@ -1,8 +1,9 @@
 ---
 import "../styles/global.css";
 import { getTowns } from "../lib/db";
+import { emailSendingOn } from "../lib/flags";
 const { title, town, alerts = [], image = null, desc = "Up-to-date news, alerts, meetings, sports, events and obituaries for Cleburne, Texas." } = Astro.props;
-const towns = await getTowns(); const slug = town?.slug ?? "cleburne";
+const [towns, emailOn] = await Promise.all([getTowns(), emailSendingOn()]); const slug = town?.slug ?? "cleburne";
 // Search-result hygiene for every page: titles <= 65 chars, descriptions 70-160 chars, cut at a word boundary.
 const clip = (x: string, n: number) => (x ?? "").length <= n ? (x ?? "") : (x ?? "").slice(0, n - 1).replace(/[\s,;:.\u2014-]+\S*$/, "") + "\u2026";
 const pageTitle = (title ?? "").length > 65 ? clip(String(title).replace(/\s+\u2014\s+[^\u2014]+ Wire$/, ""), 65) : title;
@@ -50,7 +51,7 @@ const pageDesc = (() => { let d = String(desc ?? "").replace(/\s+/g, " ").trim()
   <footer><div class="wrap">
     <div class="join" id="join">
       <h3>The {town?.name ?? "Cleburne"} morning email</h3>
-      <p>Every weekday at 7. The day's news, weather and what's going on, in five minutes. Free.</p>
+      <p>{emailOn ? "Every weekday at 7. The day's news, weather and what's going on, in five minutes. Free." : "The day's news, weather and what's going on, in five minutes. Free. Join the list and we'll email you when the next edition goes out."}</p>
       <form method="post" action="/api/subscribe"><input type="hidden" name="town" value={slug} /><input type="email" name="email" placeholder="Your email" required aria-label="Email address" /><button class="btn">Subscribe</button></form>
     </div>
     <div class="fcols">
@@ -59,7 +60,7 @@ const pageDesc = (() => { let d = String(desc ?? "").replace(/\s+/g, " ").trim()
       <div><b>Civic</b><a href={`/${slug}/meetings`}>Public meetings</a><a href={`/${slug}/officials`}>Who represents you</a><a href={`/${slug}/schools`}>Schools</a><a href={`/${slug}/roads`}>Roads and outages</a><a href={`/${slug}/101`}>Cleburne 101</a><a href={`/${slug}/homes`}>Homes and money</a></div>
       <div><b>Cleburne Wire</b><a href="/about">What we cover</a><a href="/submit">Send a tip</a><a href={`/${slug}/jobs`}>Jobs</a><a href="/advertise">Advertise</a><a href="/partners">News box for your site</a><a href="/search">Search</a><a href="https://www.facebook.com/CleburneWire" rel="noopener">Facebook</a></div>
     </div>
-    <div class="fbase"><span class="brand">{town?.name ?? "Cleburne"} <span>Wire</span></span><span>Local news for {town?.name ?? "Cleburne"}, Texas. Every story links to its original source. Corrections: <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a></span></div>
+    <div class="fbase"><span class="brand">{town?.name ?? "Cleburne"} <span>Wire</span></span><span>Local news for {town?.name ?? "Cleburne"}, Texas. Every story links to its original source. Corrections: <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span></div>
   </div></footer>
   <script is:inline>
     // Referral: remember who shared the site with this visitor, and credit them on signup
