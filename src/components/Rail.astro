@@ -3,8 +3,10 @@
 import HouseAd from "./HouseAd.astro";
 import Poll from "./Poll.astro";
 import { sb, getAds } from "../lib/db";
+import { emailSendingOn } from "../lib/flags";
 const { town, exclude = null, events = true, headlines = true } = Astro.props;
 const now = new Date();
+const emailOn = await emailSendingOn();
 const [evRes, hlRes, ad, mrRes] = await Promise.all([
   events ? sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").gte("event_at", now.toISOString()).order("event_at").limit(30) : Promise.resolve({ data: [] }),
   headlines ? sb.from("stories").select("id,title,published_at").eq("status","published").not("category","in","(events,weather,obituaries)").is("event_at", null).not("local_checked_at","is",null).or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).order("score",{ascending:false}).order("published_at",{ascending:false}).gte("published_at", new Date(now.getTime()-7*864e5).toISOString()).limit(10) : Promise.resolve({ data: [] }),
@@ -21,7 +23,7 @@ const d = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(iso).toLocale
   {(mr.length >= 3 ? mr : hl).length > 0 && <section><h3>{mr.length >= 3 ? "Most read" : "Top stories"}</h3><ol class="ranked">{(mr.length >= 3 ? mr : hl).map((s: any) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a></li>)}</ol></section>}
   <section class="join">
     <h3>The morning email</h3>
-    <p>{town.name} news and weather in your inbox at 7, every weekday.</p>
+    <p>{emailOn ? `${town.name} news and weather in your inbox at 7, every weekday.` : `${town.name} news and weather in your inbox. Join the list for the next edition.`}</p>
     <form method="post" action="/api/subscribe"><input type="hidden" name="town" value={town.slug} /><input type="email" name="email" placeholder="Your email" required aria-label="Email address" /><button class="btn">Subscribe</button></form>
   </section>
   <Poll {town} />
