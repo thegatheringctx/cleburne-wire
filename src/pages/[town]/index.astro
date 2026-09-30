@@ -1,4 +1,5 @@
 ---
+import { emailSendingOn } from "../../lib/flags";
 import Base from "../../layouts/Base.astro";
 import Feed from "../../components/Feed.astro";
 import SubscribeBand from "../../components/SubscribeBand.astro";
@@ -53,6 +54,7 @@ const today = now.toLocaleDateString("en-US", { weekday: "long", month: "long", 
 const d = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(iso).toLocaleDateString("en-US", { timeZone: "America/Chicago", ...o });
 const cleanObit = (t: string) => t.replace(/\s*\bobituary\b:?\s*/ig, " ").replace(/\s*[-—]\s*$/, "").replace(/\s{2,}/g, " ").trim();
 Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
+const emailOn = await emailSendingOn();
 ---
 <Base title={`${town.name} Wire — what's happening in ${town.name}, TX today`} {town} {alerts}>
   {live && <a class="live-strip" href={`https://mixlr.com/${town.radio_mixlr}`} target="_blank" rel="noopener"><span class="live-dot" aria-hidden="true"></span>{town.radio_name} is live now. Listen to the {town.team_name}</a>}
@@ -129,7 +131,7 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300")
 
       <section class="join">
         <h3>The morning email</h3>
-        <p>{town.name} news and weather in your inbox at 7, every weekday.</p>
+        <p>{emailOn ? `${town.name} news and weather in your inbox at 7, every weekday.` : `${town.name} news and weather in your inbox. Join the list for the next edition.`}</p>
         <form method="post" action="/api/subscribe"><input type="hidden" name="town" value={town.slug} /><input type="email" name="email" placeholder="Your email" required aria-label="Email address" /><button class="btn">Subscribe</button></form>
       </section>
 
