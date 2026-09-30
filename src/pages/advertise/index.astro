@@ -2,6 +2,9 @@
 import Base from "../../layouts/Base.astro";
 import BizRow from "../../components/BizRow.astro";
 import { sb } from "../../lib/db";
+// The advertise page sells the primary (first-launched) active town. Name, slug and team come from the towns table.
+const { data: T } = await sb.from("towns").select("name,slug,team_name").eq("active", true).order("created_at").limit(1).maybeSingle();
+const town = T ?? { name: "Cleburne", slug: "cleburne", team_name: null };
 const L = {
   boost: "https://buy.stripe.com/9B67sEgcQaj57DXfkDco004",
   listing: "https://buy.stripe.com/9B6aEQ4u80Iv2jDfkDco003",
@@ -19,7 +22,7 @@ const [{ data: taken }, { count: subs }, { count: founders }, { count: biz }, { 
 const partnersLeft = Math.max(0, 5 - (partners ?? 0));
 const sold = new Set((taken ?? []).filter((a) => a.placement === "category-sponsor").map((a) => a.category));
 const emailSold = (taken ?? []).some((a) => a.placement === "newsletter" && a.category === "presenting");
-const SECTIONS = [["sports", "Sports and Yellow Jackets"], ["obituaries", "Obituaries"], ["homes", "Homes and money"], ["meetings", "Public meetings"], ["weekend", "Weekend guide"]];
+const SECTIONS = [["sports", town.team_name ? `Sports and ${town.team_name}` : "Sports"], ["obituaries", "Obituaries"], ["homes", "Homes and money"], ["meetings", "Public meetings"], ["weekend", "Weekend guide"]];
 const open = SECTIONS.filter(([k]) => !sold.has(k));
 const foundingLeft = Math.max(0, 10 - (founders ?? 0));
 const readers = (await sb.rpc("readers_30d")).data ?? 0;
@@ -28,9 +31,9 @@ const emailOn = (await sb.rpc("email_sending_on")).data !== false;
 const showAudience = (subs ?? 0) >= 250 || readers >= 2000;
 Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
 ---
-<Base title="Advertise on Cleburne Wire: reach Cleburne every day" desc="Sponsor Cleburne's daily local news. Event boosts from $25, featured listings from $30 a month, and exclusive section and email sponsorships. Founding rates, cancel anytime.">
-  <header class="page-head"><h1>Reach Cleburne every day</h1>
-    <p class="dek">Cleburne Wire covers the news, scores, meetings and weekend plans for Cleburne, plus a guide to {(biz ?? 0).toLocaleString()} local businesses. Put yours in front of neighbors, not strangers.</p></header>
+<Base title={`Advertise on ${town.name} Wire: reach ${town.name} every day`} desc={`Sponsor ${town.name}'s daily local news. Event boosts from $25, featured listings from $30 a month, and exclusive section sponsorships. Founding rates, cancel anytime.`}>
+  <header class="page-head"><h1>Reach {town.name} every day</h1>
+    <p class="dek">{town.name} Wire covers the news, scores, meetings and weekend plans for {town.name}, plus a guide to {(biz ?? 0).toLocaleString()} local businesses. Put yours in front of neighbors, not strangers.</p></header>
 
   <div class="notice" style="margin-bottom:1.2rem"><b>Your business may already be listed, free.</b> Search for it, then add your photo, hours and website at no cost.
     <form method="get" action="/search" style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap"><input name="q" placeholder="Your business name" aria-label="Your business name" style="flex:1;min-width:12rem;padding:.6rem;border:1px solid var(--line,#DCE3EA);border-radius:4px" /><button class="btn" type="submit">Find my listing</button></form></div>
@@ -53,7 +56,7 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300")
       <p class="avail">{open.length ? <>Open: {open.map(([, n]) => n).join(", ")}</> : "All sections are taken. Ask to join the waitlist."}</p>
       {open.length > 0 ? <a class="btn ghost" href={L.section}>Claim a section</a> : <a class="btn ghost" href="mailto:news@cleburnewire.com?subject=Section%20waitlist">Join the waitlist</a>}</div>
     {emailOn && <div class="tier"><span class="t-name">Morning Email Presenting Sponsor</span><div class="t-price">$299<small>/mo</small></div>
-      <ul><li>The top slot in every weekday morning email</li><li>One sponsor only</li><li>The first thing Cleburne reads at 7</li></ul>
+      <ul><li>The top slot in every weekday morning email</li><li>One sponsor only</li><li>The first thing {town.name} reads at 7</li></ul>
       <p class="avail">{emailSold ? "Taken. Ask to join the waitlist." : "Available now"}</p>
       {emailSold ? <a class="btn ghost" href="mailto:news@cleburnewire.com?subject=Email%20sponsor%20waitlist">Join the waitlist</a> : <a class="btn ghost" href={L.email}>Present the morning email</a>}</div>}
   </section>
@@ -62,13 +65,13 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300")
     <h3 class="group">What $30 a month looks like</h3>
     <p style="margin-top:0">A Featured Listing sits at the top of its category in the Guide, above every free listing, with a Featured badge. Example:</p>
     <div class="featured-example" aria-label="Example featured listing" style="pointer-events:none;user-select:none">
-      <BizRow b={{ slug: "", name: "Your Business Name", tier: "featured", category: "restaurants", address: "123 Main St, Cleburne, TX", phone: "8175550100", description: "Your one-line description, written from your website. Change it anytime.", image_url: null, rating: 4.8, rating_count: 126 }} i={0} town={{ slug: "cleburne" }} />
+      <BizRow b={{ slug: "", name: "Your Business Name", tier: "featured", category: "restaurants", address: `123 Main St, ${town.name}, TX`, phone: "8175550100", description: "Your one-line description, written from your website. Change it anytime.", image_url: null, rating: 4.8, rating_count: 126 }} i={0} town={{ slug: town.slug }} />
     </div>
     <p style="font-size:.9rem;color:var(--muted,#5B6878)">Example only. Your real name, hours, phone, photo and reviews appear on yours.</p>
 
     <h3 class="group">Why it works</h3>
     <div class="util-grid">
-      <div class="util"><b>Local, not national</b><span>Built only for Cleburne: local news, the local Guide, and local events. Your ad isn't competing with national brands.</span></div>
+      <div class="util"><b>Local, not national</b><span>Built only for {town.name}: local news, the local Guide, and local events. Your ad isn't competing with national brands.</span></div>
       <div class="util"><b>See your results</b><span>A private page shows how often your ad was seen and clicked, updated live. You get the link the moment you pay.</span></div>
       <div class="util"><b>No contracts</b><span>Month to month. Cancel from your receipt anytime.</span></div>
       <div class="util"><b>Live the same day</b><span>Pay online and your ad goes up automatically, built from your business name and website. Email changes anytime.</span></div>
