@@ -1,11 +1,13 @@
 ---
+import { emailSendingOn } from "../lib/flags";
 const { town } = Astro.props;
+const emailOn = await emailSendingOn();
 const name = town?.name ?? "Cleburne"; const slug = town?.slug ?? "cleburne";
 ---
 <section class="sub-band">
   <div>
     <b>Get {name} in your inbox</b>
-    <span>The day's news, weather and events at 7 every weekday. Free.</span>
+    <span>{emailOn ? "The day's news, weather and events at 7 every weekday. Free." : "The day's news, weather and events, free. Join the list for the next edition."}</span>
   </div>
   <form method="post" action="/api/subscribe"><input type="hidden" name="town" value={slug} /><input type="email" name="email" placeholder="Your email" required aria-label="Email address" /><button class="btn">Subscribe</button></form>
 </section>
