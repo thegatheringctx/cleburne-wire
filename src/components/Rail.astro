@@ -8,7 +8,7 @@ const { town, exclude = null, events = true, headlines = true } = Astro.props;
 const now = new Date();
 const emailOn = await emailSendingOn();
 const [evRes, hlRes, ad, mrRes] = await Promise.all([
-  events ? sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").gte("event_at", now.toISOString()).order("event_at").limit(30) : Promise.resolve({ data: [] }),
+  events ? sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).gte("event_at", now.toISOString()).order("event_at").limit(30) : Promise.resolve({ data: [] }),
   headlines ? sb.from("stories").select("id,title,published_at").eq("status","published").not("category","in","(events,weather,obituaries)").is("event_at", null).not("local_checked_at","is",null).or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).order("score",{ascending:false}).order("published_at",{ascending:false}).gte("published_at", new Date(now.getTime()-7*864e5).toISOString()).limit(10) : Promise.resolve({ data: [] }),
   getAds(town.id, "sidebar"),
   headlines ? sb.rpc("most_read", { p_town: town.id, p_days: 3, p_limit: 6 }) : Promise.resolve({ data: [] }),
