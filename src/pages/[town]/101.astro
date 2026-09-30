@@ -9,28 +9,30 @@ const map = (q: string) => `https://www.google.com/maps/search/?api=1&query=${en
 const G = (slug: string) => `/${town.slug}/guide/${slug}`;
 Astro.response.headers.set("Cache-Control", "public, max-age=86400, s-maxage=86400");
 const emailOn = await emailSendingOn();
+// Town facts live in towns.profile (city site, city hall, school district, library, parks), so a new town is data entry.
+const P: Record<string, string> = town.profile ?? {};
 ---
 <Base title={`${town.name} 101: a practical guide for residents and newcomers`} {town} {alerts} desc={`New to ${town.name}, TX? Utilities, city services, schools, parks, health care and who to call, in one page.`}>
   <Page {town} title={`${town.name} 101`} dek={`Everything you need to get set up in ${town.name}: utilities, city services, schools, parks and who to call. Each item links to the official source.`}>
     <div class="handbook">
     <section><h3 class="group">Get your utilities on</h3>
       <div class="util-grid">
-        <div class="util"><b>Water, sewer and trash</b><span>Provided by the City of {town.name}. Start service with City utility billing.</span><a href="https://www.cleburne.net" target="_blank" rel="noopener">City of {town.name}</a><span>City Hall, 10 N. Robinson St., 817-645-0908</span></div>
+        <div class="util"><b>Water, sewer and trash</b><span>Provided by the City of {town.name}. Start service with City utility billing.</span>{P.city_url && <a href={P.city_url} target="_blank" rel="noopener">City of {town.name}</a>}{P.city_hall_address && <span>City Hall, {P.city_hall_address}{P.city_hall_phone ? `, ${P.city_hall_phone}` : ""}</span>}</div>
         <div class="util"><b>Electricity</b><span>Most homes pick a retail provider. Oncor owns the lines and handles outages. Some rural addresses are on a co-op.</span><a href="https://www.powertochoose.org" target="_blank" rel="noopener">Compare plans at Power to Choose</a></div>
-        <div class="util"><b>Natural gas</b><span>Atmos Energy serves {town.name}.</span><a href="https://www.atmosenergy.com" target="_blank" rel="noopener">Start service with Atmos</a></div>
+        {P.gas_utility && <div class="util"><b>Natural gas</b><span>{P.gas_utility} serves {town.name}.</span>{P.gas_url && <a href={P.gas_url} target="_blank" rel="noopener">Start service with {P.gas_utility.split(" ")[0]}</a>}</div>}
       </div></section>
     <section><h3 class="group">City services</h3>
       <div class="util-grid">
-        <div class="util"><b>City Hall</b><span>Permits, utility billing, municipal court, animal services and code questions start here.</span><a href={map("10 N. Robinson St.")} target="_blank" rel="noopener">10 N. Robinson St.</a><span>817-645-0908</span></div>
+        {P.city_hall_address && <div class="util"><b>City Hall</b><span>Permits, utility billing, municipal court, animal services and code questions start here.</span><a href={map(P.city_hall_address)} target="_blank" rel="noopener">{P.city_hall_address}</a>{P.city_hall_phone && <span>{P.city_hall_phone}</span>}</div>}
         <div class="util"><b>City council and meetings</b><span>What's on the agenda before every meeting, in plain English.</span><a href={`/${town.slug}/meetings`}>Public meetings</a></div>
         <div class="util"><b>Who represents you</b><span>Mayor, council district, county, state and federal.</span><a href={`/${town.slug}/officials`}>See your officials</a></div>
         <div class="util"><b>Roads, outages and alerts</b><span>Closures, power and gas outages, weather alerts.</span><a href={`/${town.slug}/roads`}>Roads and outages</a></div>
       </div></section>
     <section><h3 class="group">Schools and library</h3>
       <div class="util-grid">
-        <div class="util"><b>{town.name} ISD</b><span>Enrollment, calendars, bus routes and board meetings.</span><a href="https://www.c-isd.com" target="_blank" rel="noopener">District website</a></div>
+        {P.isd_url && <div class="util"><b>{P.isd_name ?? `${town.name} ISD`}</b><span>Enrollment, calendars, bus routes and board meetings.</span><a href={P.isd_url} target="_blank" rel="noopener">District website</a></div>}
         <div class="util"><b>All schools and childcare</b><span>Public, private and childcare listings in the Guide.</span><a href={G("schools")}>Browse schools</a></div>
-        <div class="util"><b>Public library</b><span>Free card for residents: books, e-books, programs and storytimes.</span><a href={map("Cleburne Public Library, 302 W. Henderson St.")} target="_blank" rel="noopener">302 W. Henderson St.</a></div>
+        {P.library_address && <div class="util"><b>Public library</b><span>Free card for residents: books, e-books, programs and storytimes.</span><a href={map(`${P.library_name ?? "Public Library"}, ${P.library_address}`)} target="_blank" rel="noopener">{P.library_address}</a></div>}
       </div></section>
     <section><h3 class="group">Health care</h3>
       <div class="util-grid">
@@ -40,7 +42,7 @@ const emailOn = await emailSendingOn();
       </div></section>
     <section><h3 class="group">Things to do</h3>
       <div class="util-grid">
-        <div class="util"><b>Parks and outdoors</b><span>City parks, Lake Pat Cleburne and nearby Cleburne State Park.</span><a href={G("parks")}>Parks and recreation</a></div>
+        <div class="util"><b>Parks and outdoors</b><span>{P.parks_blurb ?? `City parks and outdoor spots in and around ${town.name}.`}</span><a href={G("parks")}>Parks and recreation</a></div>
         <div class="util"><b>Museums and attractions</b><span>Local history, the library, and family outings.</span><a href={G("things-to-do")}>Things to do</a></div>
         <div class="util"><b>This weekend</b><span>Updated every Thursday with what's happening.</span><a href={`/${town.slug}/weekend`}>Weekend guide</a></div>
         <div class="util"><b>Where to eat</b><span>Ranked by what locals say.</span><a href={G("restaurants")}>Restaurants</a></div>
@@ -52,6 +54,6 @@ const emailOn = await emailSendingOn();
         <div class="util gold"><b>Know what's happening</b><span>{emailOn ? `${town.name} news and weather at 7 every weekday. Free.` : `${town.name} news and weather in your inbox. Free.`}</span><a href="#join">Get the morning email</a></div>
       </div></section>
     </div>
-    <p class="fix">Something here out of date? <a href="mailto:news@cleburnewire.com?subject=Cleburne%20101%20correction">Tell us</a> and we'll fix it.</p>
+    <p class="fix">Something here out of date? <a href={`mailto:news@cleburnewire.com?subject=${encodeURIComponent(`${town.name} 101 correction`)}`}>Tell us</a> and we'll fix it.</p>
   </Page>
 </Base>
