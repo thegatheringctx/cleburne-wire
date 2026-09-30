@@ -8,14 +8,17 @@ const [alerts, agents, lenders, insurers, dealers, news, rate, ad] = await Promi
   getAlerts(town.id), getBusinesses(town.id, "real-estate", 40), getBusinesses(town.id, "mortgage", 8), getBusinesses(town.id, "insurance", 6),
   getBusinesses(town.id, "car-dealers", 8), getFeed(town.id, "real-estate", 8), getLatestRate(), getAds(town.id, "category-sponsor", "homes")]);
 const { data: listings } = await sb.from("listings").select("*").eq("town_id", town.id).eq("status", "active").gt("expires_at", new Date().toISOString()).order("featured", { ascending: false }).order("open_house_at", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).limit(24);
+// The weekly rate is only shown while it is current (Freddie Mac publishes Thursdays); a stale number is worse than none.
+const rateFresh = !!rate && Date.now() - new Date(rate.as_of + "T12:00:00Z").getTime() < 10 * 864e5;
 const money = (n: number) => "$" + n.toLocaleString("en-US");
 const oh = (l: any) => l.open_house_at ? new Date(l.open_house_at).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
 Astro.response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600");
 ---
-<Base title={`Homes, money & cars in ${town.name}, TX — ${town.name} Wire`} {town} {alerts} desc={`Mortgage rates, top-rated realtors, banks and lenders, insurance agents, and car dealers in ${town.name}, Texas.`}>
+<Base title={`Homes, money & cars in ${town.name}, TX — ${town.name} Wire`} {town} {alerts} desc={`Mortgage rates, real estate agents, banks and lenders, insurance agents, and car dealers in ${town.name}, Texas.`}>
   <Page {town} title="Homes, money and cars" dek={`Every real estate company in ${town.name}, this week's mortgage rate, local real estate news, and the best-reviewed lenders, insurers and dealers.`}>
-    {rate ? <div class="hero-stat"><b>{rate.rate_30}%</b><span>30-year fixed, national average<br/>Freddie Mac, week of {new Date(rate.as_of + "T12:00:00Z").toLocaleDateString("en-US",{month:"long",day:"numeric"})}{rate.rate_15 ? `. 15-year: ${rate.rate_15}%` : ""}</span></div>
+    {rateFresh ? <div class="hero-stat"><b>{rate.rate_30}%</b><span>30-year fixed, national average<br/><a href="https://www.freddiemac.com/pmms" target="_blank" rel="noopener">Freddie Mac</a>, week of {new Date(rate.as_of + "T12:00:00Z").toLocaleDateString("en-US",{month:"long",day:"numeric"})}{rate.rate_15 ? `. 15-year: ${rate.rate_15}%` : ""}</span></div>
           : <div class="hero-stat"><b>--</b><span>The weekly mortgage rate updates every Thursday.</span></div>}
+    {rateFresh && <p class="fix" style="margin-top:.4rem">A national weekly average from Freddie Mac's survey of lenders, for reference only. It is not a quote or an offer of credit; your rate depends on your credit, down payment, loan type and lender.</p>}
     {ad && (ad.image_url ? <section class="sp-card">
       <img src={ad.image_url} alt={ad.headline} loading="lazy" />
       <div>
@@ -39,11 +42,12 @@ Astro.response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600
         {l.listing_url && <a class="lst-link" href={l.listing_url} target="_blank" rel="noopener nofollow">See the listing</a>}
       </div>
     </article>)}</div>}
+    {(listings ?? []).length > 0 && <p class="fix">Listings and open houses are posted by the listing agent, who is responsible for their accuracy. Confirm details with the agent. Equal Housing Opportunity.</p>}
     <h3 class="group">Real estate companies in {town.name} <span style="font-weight:600;font-size:.88rem;color:var(--slate)">{agents.length} listed</span></h3>{agents.map((b, i) => <BizRow {b} {i} {town} />)}
     {news.length > 0 && <><h3 class="group">Real estate news <a href={`/${town.slug}/real-estate`}>See all</a></h3><ul class="plain">{news.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a><small>{fmtTime(s.published_at)}</small></li>)}</ul></>}
     <h3 class="group">Banks and lenders <a href={`/${town.slug}/guide/mortgage`}>See all</a></h3>{lenders.map((b, i) => <BizRow {b} {i} {town} />)}
     <h3 class="group">Insurance <a href={`/${town.slug}/guide/insurance`}>See all</a></h3>{insurers.map((b, i) => <BizRow {b} {i} {town} />)}
     <h3 class="group">Car dealers <a href={`/${town.slug}/guide/car-dealers`}>See all</a></h3>{dealers.map((b, i) => <BizRow {b} {i} {town} />)}
-    <div class="notice" style="margin-top:2rem"><b>Agents, lenders and dealers:</b> put your listings, rates or inventory at the top of this page. <a href="/advertise">See options</a></div>
+    <div class="notice" style="margin-top:2rem"><b>Agents, lenders and dealers:</b> put your listings, services or inventory at the top of this page. <a href="/advertise">See options</a></div>
   </Page>
 </Base>
