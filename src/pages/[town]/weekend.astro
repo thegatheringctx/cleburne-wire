@@ -7,8 +7,13 @@ const [alerts, ad, gRes] = await Promise.all([getAlerts(town.id), getAds(town.id
   sb.from("guides").select("*").eq("town_id", town.id).eq("kind", "weekend").order("week_of", { ascending: false }).limit(1).maybeSingle()]);
 const g = gRes.data;
 const boosts = await getBoosts(town.id);
-// After Monday, last weekend's guide is stale: show the week ahead until Thursday's new guide publishes
-const stale = !!g && Date.now() > new Date(g.week_of + "T12:00:00Z").getTime() + 3 * 864e5;
+// The guide publishes Thursday (week_of) and covers Friday through Sunday. It expires at midnight Sunday, Central time;
+// after that the page shows the week ahead until Thursday's new guide publishes.
+const thu = g ? new Date(g.week_of + "T12:00:00Z") : null;
+const stale = !!thu && Date.now() > thu.getTime() + 3 * 864e5 + 17 * 36e5;
+const fmtD = (d: Date, o: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-US", { timeZone: "UTC", ...o });
+const span = thu ? (() => { const fri = new Date(thu.getTime() + 864e5), sun = new Date(thu.getTime() + 3 * 864e5);
+  return fri.getUTCMonth() === sun.getUTCMonth() ? `${fmtD(fri, { month: "short", day: "numeric" })}\u2013${fmtD(sun, { day: "numeric" })}` : `${fmtD(fri, { month: "short", day: "numeric" })}\u2013${fmtD(sun, { month: "short", day: "numeric" })}`; })() : "";
 const { data: wk } = stale || !g ? await sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").gte("event_at", new Date().toISOString()).lte("event_at", new Date(Date.now() + 7 * 864e5).toISOString()).order("event_at").limit(120) : { data: [] };
 const seenW = new Set<string>();
 const week = (wk ?? []).filter((e: any) => { const k = new Date(e.event_at).toLocaleDateString("en-CA", { timeZone: "America/Chicago" }) + e.title.toLowerCase(); if (seenW.has(k)) return false; seenW.add(k); return true; });
@@ -16,7 +21,7 @@ const byDay = week.reduce((m: Record<string, any[]>, e: any) => { const k = new 
 const tm = (iso: string) => { const t = new Date(iso).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }); return t === "12:00 PM" ? "" : t; };
 Astro.response.headers.set("Cache-Control", "public, max-age=1800, s-maxage=1800");
 ---
-<Base title={g ? `${g.title} — ${town.name} Wire` : `This weekend in ${town.name}`} {town} {alerts} desc={g?.intro}>
+<Base title={g && !stale ? `${g.title} — ${town.name} Wire` : `Coming up this week in ${town.name}`} {town} {alerts} desc={g && !stale ? g.intro : `Everything on the ${town.name} calendar this week. The next Weekend Guide publishes Thursday.`}>
   {(!g || stale) ? <Page {town} title={`Coming up this week in ${town.name}`} dek="The next Weekend Guide publishes Thursday morning. Here's everything on the calendar until then." railProps={{ events: false }}>
     {boosts.length > 0 && <div class="boosts">{boosts.map((b) => <a class="boost" href={`/go/${b.id}`} rel="sponsored"><span>Featured event</span><b>{b.headline}</b><small>{b.body}</small></a>)}</div>}
     {Object.keys(byDay).length === 0 && <p class="empty">Nothing on the calendar yet this week. <a href="/submit?kind=event">Add an event</a>.</p>}
@@ -25,7 +30,7 @@ Astro.response.headers.set("Cache-Control", "public, max-age=1800, s-maxage=1800
     </section>)}
     <p><a class="btn ghost" href={`/${town.slug}/events`}>Full events calendar</a></p>
   </Page> :
-  <Page {town} title={g.title} dek={g.intro} crumbs={[{ label: `Weekend of ${new Date(g.week_of + "T12:00:00Z").toLocaleDateString("en-US",{month:"long",day:"numeric"})}`, href: `/${town.slug}/weekend` }]} railProps={{ events: false }}>
+  <Page {town} title={g.title} dek={g.intro} crumbs={[{ label: `Weekend of ${span}`, href: `/${town.slug}/weekend` }]} railProps={{ events: false }}>
     {ad && <a class="presented-by" href={`/go/${ad.id}`} rel="sponsored"><span>Weekend Guide presented by</span><b>{ad.headline}</b></a>}
     {boosts.length > 0 && <div class="boosts">{boosts.map((b) => <a class="boost" href={`/go/${b.id}`} rel="sponsored"><span>Featured event</span><b>{b.headline}</b><small>{b.body}</small></a>)}</div>}
     {(g.items ?? []).map((s: any) => <section><h3 class="group">{s.heading}</h3>
