@@ -9,10 +9,22 @@ const cats = await getDirCategories(); const cat = cats.find((c) => c.slug === A
 if (!cat) return Astro.redirect(`/${town.slug}/guide`);
 const [alerts, list, ad] = await Promise.all([getAlerts(town.id), getBusinesses(town.id, cat.slug), getAds(town.id, "sidebar")]);
 const title = cat.group_name === "Eat & Drink" ? `Best ${cat.name} in ${town.name}, TX` : `${cat.name} in ${town.name}, TX`;
+const site = "https://cleburnewire.com";
+// Structured data: the ranked list (Google can show it as a list result) and the breadcrumb trail.
+const ld = [
+  { "@context": "https://schema.org", "@type": "ItemList", name: title, numberOfItems: list.length,
+    itemListElement: list.slice(0, 50).map((b: any, i: number) => ({ "@type": "ListItem", position: i + 1, url: `${site}/${town.slug}/biz/${b.slug}`, name: b.name })) },
+  { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [
+    { "@type": "ListItem", position: 1, name: `${town.name} Wire`, item: `${site}/${town.slug}` },
+    { "@type": "ListItem", position: 2, name: "Guide", item: `${site}/${town.slug}/guide` },
+    { "@type": "ListItem", position: 3, name: cat.name, item: `${site}/${town.slug}/guide/${cat.slug}` } ] },
+];
+const rated = list.filter((b: any) => b.rating != null).length;
 Astro.response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600");
 ---
 <Base title={`${title} — ${town.name} Wire`} {town} {alerts} desc={`${list.length} ${cat.name.toLowerCase()} in ${town.name}, ranked by rating and review count. Hours, phone, and directions for each.`}>
-  <Page {town} {title} dek={`${list.length} listings, ranked by rating and number of reviews. Featured listings are paid and marked.`} crumbs={[{ label: "Guide", href: `/${town.slug}/guide` }, { label: cat.group_name, href: `/${town.slug}/guide` }]}>
+  <script type="application/ld+json" set:html={JSON.stringify(ld)} />
+  <Page {town} {title} dek={`${list.length} listings${rated ? `; ${rated} with Google ratings, ranked by rating and number of reviews` : ""}. Featured listings are paid and marked.`} crumbs={[{ label: "Guide", href: `/${town.slug}/guide` }, { label: cat.group_name, href: `/${town.slug}/guide` }]}>
     {ad && <a class="sponsor" href={`/go/${ad.id}`} rel="sponsored"><small>Sponsored</small><b>{ad.headline}</b>{ad.body}</a>}
     <Map pins={list.slice(0, 40).map((b, i) => ({ lat: b.lat, lng: b.lng, name: b.name, href: `/${town.slug}/biz/${b.slug}`, n: i + 1 }))} />
     {list.length === 0 && <p class="empty">No listings yet in this category. <a href="/submit">Add a business</a>.</p>}
