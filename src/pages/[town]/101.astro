@@ -1,4 +1,5 @@
 ---
+import { emailSendingOn } from "../../lib/flags";
 import Base from "../../layouts/Base.astro";
 import Page from "../../components/Page.astro";
 import { getTown, getAlerts } from "../../lib/db";
@@ -7,6 +8,7 @@ const alerts = await getAlerts(town.id);
 const map = (q: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q + ", " + town.name + ", TX")}`;
 const G = (slug: string) => `/${town.slug}/guide/${slug}`;
 Astro.response.headers.set("Cache-Control", "public, max-age=86400, s-maxage=86400");
+const emailOn = await emailSendingOn();
 ---
 <Base title={`${town.name} 101: a practical guide for residents and newcomers`} {town} {alerts} desc={`New to ${town.name}, TX? Utilities, city services, schools, parks, health care and who to call, in one page.`}>
   <Page {town} title={`${town.name} 101`} dek={`Everything you need to get set up in ${town.name}: utilities, city services, schools, parks and who to call. Each item links to the official source.`}>
@@ -47,7 +49,7 @@ Astro.response.headers.set("Cache-Control", "public, max-age=86400, s-maxage=864
       <div class="util-grid">
         <div class="util"><b>Churches</b><span>Every congregation in town, alphabetical.</span><a href={`/${town.slug}/faith`}>Faith and community</a></div>
         <div class="util"><b>Volunteer and give</b><span>Food pantries, nonprofits and service events.</span><a href={`/${town.slug}/faith`}>Community calendar</a></div>
-        <div class="util gold"><b>Know what's happening</b><span>{town.name} news and weather at 7 every weekday. Free.</span><a href="#join">Get the morning email</a></div>
+        <div class="util gold"><b>Know what's happening</b><span>{emailOn ? `${town.name} news and weather at 7 every weekday. Free.` : `${town.name} news and weather in your inbox. Free.`}</span><a href="#join">Get the morning email</a></div>
       </div></section>
     </div>
     <p class="fix">Something here out of date? <a href="mailto:news@cleburnewire.com?subject=Cleburne%20101%20correction">Tell us</a> and we'll fix it.</p>
