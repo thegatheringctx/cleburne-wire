@@ -6,7 +6,7 @@ const show = Astro.url.searchParams.get("show") ?? "both";
 const now = new Date();
 const [{ data: news }, { data: ev }] = await Promise.all([
   show !== "events" ? sb.rpc("top_stories", { p_town: town.slug, p_hours: 72, p_limit: 8 }) : Promise.resolve({ data: [] }),
-  show !== "news" ? sb.from("stories").select("id,title,event_at").eq("status", "published").eq("category", "events").gte("event_at", now.toISOString()).order("event_at").limit(30) : Promise.resolve({ data: [] }),
+  show !== "news" ? sb.from("stories").select("id,title,event_at").eq("status", "published").or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).eq("category", "events").gte("event_at", now.toISOString()).order("event_at").limit(30) : Promise.resolve({ data: [] }),
 ]);
 const items = (news ?? []).filter((s: any) => !["events", "weather", "obituaries"].includes(s.category)).slice(0, 4);
 const seen = new Set<string>(); const events = (ev ?? []).filter((e: any) => { const k = e.title.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 4);

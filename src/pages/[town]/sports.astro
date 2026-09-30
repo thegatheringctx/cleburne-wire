@@ -3,13 +3,15 @@ import Base from "../../layouts/Base.astro";
 import Page from "../../components/Page.astro";
 import { getAds, getTown, getAlerts, sb, fmtTime, radioLive } from "../../lib/db";
 const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+// Pro/semipro team (if the town has one) comes from towns.profile: pro_team, pro_team_blurb, pro_team_match ("word|word").
+const PRO = (town.profile as any)?.pro_team ? { name: (town.profile as any).pro_team, blurb: (town.profile as any).pro_team_blurb ?? null, match: (town.profile as any).pro_team_match ?? String((town.profile as any).pro_team).toLowerCase() } : null;
 const now = Date.now();
 const [alerts, live, { data: teams }, { data: games }, { data: news }, { data: rr }, { data: leagues }] = await Promise.all([
   getAlerts(town.id), radioLive(town.radio_mixlr),
   sb.from("teams").select("*").eq("town_id", town.id).eq("active", true).order("sort"),
   sb.from("games").select("*, teams(school,mascot,is_home_town)").gte("starts_at", new Date(now - 60 * 864e5).toISOString()).lte("starts_at", new Date(now + 60 * 864e5).toISOString()).order("starts_at"),
-  sb.from("stories").select("id,title,summary,source_name,published_at").eq("status","published").eq("category","sports").is("event_at", null).not("title","ilike","%railroaders%").gte("published_at", new Date(now - 14 * 864e5).toISOString()).order("published_at",{ascending:false}).limit(10),
-  sb.from("stories").select("id,title,source_name,published_at").eq("status","published").or("title.ilike.%railroaders%,summary.ilike.%railroaders%,title.ilike.%la moderna field%").gte("published_at", new Date(now - 150 * 864e5).toISOString()).order("published_at",{ascending:false}).limit(6),
+  sb.from("stories").select("id,title,summary,source_name,published_at").eq("status","published").or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).eq("category","sports").is("event_at", null).not("title","ilike",`%${PRO ? PRO.match.split("|")[0] : "__none__"}%`).gte("published_at", new Date(now - 14 * 864e5).toISOString()).order("published_at",{ascending:false}).limit(10),
+  sb.from("stories").select("id,title,source_name,published_at").eq("status","published").or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).or(PRO ? PRO.match.split("|").flatMap((w: string) => [`title.ilike.%${w}%`, `summary.ilike.%${w}%`]).join(",") : "id.is.null").gte("published_at", new Date(now - 150 * 864e5).toISOString()).order("published_at",{ascending:false}).limit(6),
   sb.from("leagues").select("*").eq("town_id", town.id).eq("active", true).order("sort"),
 ]);
 // County-vs-county games appear once per team; keep one copy (the home-town team's view first, then the home team's)
@@ -68,14 +70,14 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300")
       <ul class="scores">{vb.map((g) => <li class={g.result === "W" ? "win" : ""}><span class="wl">{g.result}</span><span class="opp">{g.home ? "vs" : "at"} {g.opponent}</span><span class="sc">{g.us != null ? `${g.us}-${g.them}` : ""}</span><time>{d(g.starts_at,{month:"short",day:"numeric"})}</time></li>)}</ul></>}
 
 
-    <h3 class="group">Cleburne Railroaders</h3>
+    {PRO && <><h3 class="group">{PRO.name}</h3>
     <div class="rr">
-      <p>Cleburne's pro baseball team plays in the American Association at La Moderna Field, 1906 Brazzle Blvd. The regular season runs mid-May through Labor Day; every game streams free on aabaseball.tv.</p>
-      {(rr ?? []).length > 0 ? <ul class="plain">{rr!.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a><small>{s.source_name}, {fmtTime(s.published_at)}</small></li>)}</ul> : <p class="empty" style="padding:.4rem 0">Off-season. Railroaders news and ballpark events will show here as they're announced.</p>}
-    </div>
+      {PRO.blurb && <p>{PRO.blurb}</p>}
+      {(rr ?? []).length > 0 ? <ul class="plain">{rr!.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{s.title}</a><small>{s.source_name}, {fmtTime(s.published_at)}</small></li>)}</ul> : <p class="empty" style="padding:.4rem 0">News and events will show here as they're announced.</p>}
+    </div></>}
 
     <h3 class="group">Youth sports</h3>
-    <p style="margin:.4rem 0 .8rem;color:var(--slate)">Cleburne's youth leagues. Coaches and parents: send scores, schedules and team photos and we'll share them here and in the morning email.</p>
+    <p style="margin:.4rem 0 .8rem;color:var(--slate)">{town.name}'s youth leagues. Coaches and parents: send scores, schedules and team photos and we'll share them here and in the morning email.</p>
     <div class="util-grid">{(leagues ?? []).map((l) => <div class="util gold"><b>{l.name}</b>{l.sport && <span>{l.sport}{l.ages ? `, ${l.ages}` : ""}</span>}{l.url && <a href={l.url} target="_blank" rel="noopener">League website</a>}</div>)}</div>
     <p><a class="btn" href="/submit?kind=tip">Send a score or team photo</a> <a class="btn ghost" href="mailto:news@cleburnewire.com?subject=Youth%20league%20listing">List your league</a></p>
 

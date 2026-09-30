@@ -7,8 +7,8 @@ const now = new Date();
 const isMeeting = "title.ilike.%agenda%,title.ilike.%meeting%,title.ilike.%board%,title.ilike.%council%,title.ilike.%commission%,source_url.ilike.%AgendaCenter%,source_url.ilike.%boardbook%,tags.cs.{agenda}";
 const [alerts, upRes, pastRes] = await Promise.all([
   getAlerts(town.id),
-  sb.from("stories").select("id,title,summary,body,event_at,location,source_url,source_name,category").eq("status","published").in("category",["government","schools"]).gte("event_at", new Date(now.getTime() - 3 * 36e5).toISOString()).or(isMeeting).order("event_at").limit(30),
-  sb.from("stories").select("id,title,event_at,source_url,category").eq("status","published").in("category",["government","schools"]).lt("event_at", now.toISOString()).gte("event_at", new Date(now.getTime() - 21 * 864e5).toISOString()).or(isMeeting).order("event_at",{ascending:false}).limit(15),
+  sb.from("stories").select("id,title,summary,body,event_at,location,source_url,source_name,category").eq("status","published").or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).in("category",["government","schools"]).gte("event_at", new Date(now.getTime() - 3 * 36e5).toISOString()).or(isMeeting).order("event_at").limit(30),
+  sb.from("stories").select("id,title,event_at,source_url,category").eq("status","published").or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).in("category",["government","schools"]).lt("event_at", now.toISOString()).gte("event_at", new Date(now.getTime() - 21 * 864e5).toISOString()).or(isMeeting).order("event_at",{ascending:false}).limit(15),
 ]);
 const up = upRes.data ?? []; const past = pastRes.data ?? [];
 const d = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", ...o });

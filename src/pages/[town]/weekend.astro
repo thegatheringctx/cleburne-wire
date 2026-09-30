@@ -14,7 +14,7 @@ const stale = !!thu && Date.now() > thu.getTime() + 3 * 864e5 + 17 * 36e5;
 const fmtD = (d: Date, o: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-US", { timeZone: "UTC", ...o });
 const span = thu ? (() => { const fri = new Date(thu.getTime() + 864e5), sun = new Date(thu.getTime() + 3 * 864e5);
   return fri.getUTCMonth() === sun.getUTCMonth() ? `${fmtD(fri, { month: "short", day: "numeric" })}\u2013${fmtD(sun, { day: "numeric" })}` : `${fmtD(fri, { month: "short", day: "numeric" })}\u2013${fmtD(sun, { month: "short", day: "numeric" })}`; })() : "";
-const { data: wk } = stale || !g ? await sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").gte("event_at", new Date().toISOString()).lte("event_at", new Date(Date.now() + 7 * 864e5).toISOString()).order("event_at").limit(120) : { data: [] };
+const { data: wk } = stale || !g ? await sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).gte("event_at", new Date().toISOString()).lte("event_at", new Date(Date.now() + 7 * 864e5).toISOString()).order("event_at").limit(120) : { data: [] };
 const seenW = new Set<string>();
 const week = (wk ?? []).filter((e: any) => { const k = new Date(e.event_at).toLocaleDateString("en-CA", { timeZone: "America/Chicago" }) + e.title.toLowerCase(); if (seenW.has(k)) return false; seenW.add(k); return true; });
 const byDay = week.reduce((m: Record<string, any[]>, e: any) => { const k = new Date(e.event_at).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" }); (m[k] ??= []).push(e); return m; }, {});

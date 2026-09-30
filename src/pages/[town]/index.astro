@@ -11,7 +11,7 @@ const now = new Date(); const wkEnd = new Date(now.getTime() + 7 * 864e5);
 const FN = import.meta.env.PUBLIC_SUPABASE_URL + "/functions/v1";
 const [stories, alerts, cats, eventsRes, wxRes, picks, obits] = await Promise.all([
   getFeed(town.id, undefined, 45), getAlerts(town.id), getCategories(),
-  sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").gte("event_at", now.toISOString()).lte("event_at", wkEnd.toISOString()).order("event_at").limit(40),
+  sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).gte("event_at", now.toISOString()).lte("event_at", wkEnd.toISOString()).order("event_at").limit(40),
   sb.from("stories").select("title,summary").eq("category","weather").ilike("title", `${town.name} weather%`).order("published_at", { ascending: false }).limit(1).maybeSingle(),
   getBusinesses(town.id, undefined, 400),
   getFeed(town.id, "obituaries", 6),

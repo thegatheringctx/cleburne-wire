@@ -6,21 +6,22 @@ const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect
 const now = new Date();
 const [alerts, news, { data: meet }, { data: games }] = await Promise.all([
   getAlerts(town.id), getFeed(town.id, "schools", 25),
-  sb.from("stories").select("id,title,summary,body,event_at,source_url").eq("status","published").eq("category","schools").gte("event_at", new Date(now.getTime() - 3 * 36e5).toISOString()).order("event_at").limit(3),
+  sb.from("stories").select("id,title,summary,body,event_at,source_url").eq("status","published").or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).eq("category","schools").gte("event_at", new Date(now.getTime() - 3 * 36e5).toISOString()).order("event_at").limit(3),
   sb.from("games").select("starts_at,opponent,home,result,us,them,sport,teams!inner(is_home_town,town_id)").eq("teams.is_home_town", true).eq("teams.town_id", town.id).gte("starts_at", now.toISOString()).order("starts_at").limit(3),
 ]);
 const closures = alerts.filter((a: any) => /closure|closed|delay|ice|winter|flood/i.test(a.title));
 const stories = news.filter((s) => !s.event_at);
-const D = "https://www.c-isd.com";
+const P: Record<string, string> = town.profile ?? {};
+const D = P.isd_url ?? "";
 Astro.response.headers.set("Cache-Control", "public, max-age=600, s-maxage=600");
 ---
 <Base title={`${town.name} ISD for parents: board decisions, calendar, closures`} {town} {alerts} desc={`What ${town.name} ISD parents need: school board decisions in plain English, closures, the district calendar, and Yellow Jackets games.`}>
   <Page {town} title={`${town.name} ISD for parents`} dek="School board decisions in plain English, closures, the district calendar and this week's games, in one place.">
     {closures.length > 0 && <div class="notice" style="border-left:6px solid var(--alert)"><b>Weather alert:</b> {closures[0].title}. Check the district site for closure or delay decisions.</div>}
     <div class="util-grid">
-      <div class="util"><b>District calendar</b><span>Holidays, early release and testing days.</span><a href={`${D}/calendar`} target="_blank" rel="noopener">Open the calendar</a></div>
-      <div class="util"><b>School board</b><span>Meeting dates, agendas and trustees.</span><a href={`${D}/about-us/board-of-trustees/board-meeting-dates`} target="_blank" rel="noopener">Meeting dates</a><a href={`${D}/about-us/board-of-trustees/board-of-trustees`} target="_blank" rel="noopener">Trustees</a></div>
-      <div class="util"><b>District website</b><span>Enrollment, menus, transportation and campus pages.</span><a href={D} target="_blank" rel="noopener">c-isd.com</a></div>
+      {P.isd_calendar_url && <div class="util"><b>District calendar</b><span>Holidays, early release and testing days.</span><a href={P.isd_calendar_url} target="_blank" rel="noopener">Open the calendar</a></div>}
+      {P.isd_board_url && <div class="util"><b>School board</b><span>Meeting dates, agendas and trustees.</span><a href={P.isd_board_url} target="_blank" rel="noopener">Meeting dates</a>{P.isd_trustees_url && <a href={P.isd_trustees_url} target="_blank" rel="noopener">Trustees</a>}</div>}
+      {D && <div class="util"><b>District website</b><span>Enrollment, menus, transportation and campus pages.</span><a href={D} target="_blank" rel="noopener">{D.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</a></div>}
       <div class="util gold"><b>Yellow Jackets</b><span>{(games ?? []).length ? `Next: ${(games ?? [])[0].sport} ${(games ?? [])[0].home ? "vs" : "at"} ${(games ?? [])[0].opponent}, ${new Date((games ?? [])[0].starts_at).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",timeZone:"America/Chicago"})}` : "Scores and schedules"}</span><a href={`/${town.slug}/sports`}>Sports</a></div>
     </div>
 

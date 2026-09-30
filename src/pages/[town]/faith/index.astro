@@ -6,7 +6,7 @@ const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect
 const [alerts, { data: churches }, { data: ev }] = await Promise.all([
   getAlerts(town.id),
   sb.from("businesses").select("name,slug,address,subcategory,website,service_times,kids_ministry,languages,church_updated_at").eq("town_id", town.id).eq("active", true).eq("category", "churches").order("name"),
-  sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").gte("event_at", new Date().toISOString())
+  sb.from("stories").select("id,title,event_at,location").eq("status","published").or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).eq("category","events").gte("event_at", new Date().toISOString())
     .or("title.ilike.%church%,title.ilike.%mass%,title.ilike.%worship%,title.ilike.%ministry%,title.ilike.%bible%,title.ilike.%pantry%,title.ilike.%food drive%,title.ilike.%volunteer%,title.ilike.%benefit%,title.ilike.%fundraiser%,title.ilike.%support group%,title.ilike.%grief%,title.ilike.%recovery%,location.ilike.%church%")
     .order("event_at").limit(40),
 ]);
