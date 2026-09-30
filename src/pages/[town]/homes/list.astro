@@ -7,7 +7,7 @@ const done = Astro.url.searchParams.get("done") === "1";
 Astro.response.headers.set("Cache-Control", "private, no-store");
 ---
 <Base title={`Add a listing or open house — ${town.name} Wire`} {town}>
-  <Page {town} title={done ? "Your listing is live." : "Add a listing or open house"} dek={done ? "It's on the Homes page now, and an open house also appears on the events calendar." : `Free for licensed agents with ${town.name} listings. Shows on the Homes page for 45 days; open houses also go on the events calendar and weekend guide.`} rail={false}>
+  <Page {town} title={done ? "Your listing is live." : "Add a listing or open house"} dek={done ? "It's on the Homes page now, and an open house also appears on the events calendar. Your photo shows up after a quick automatic check, usually within 30 minutes." : `Free for licensed agents with ${town.name} listings. Shows on the Homes page for 45 days; open houses also go on the events calendar and weekend guide.`} rail={false}>
     {done ? <p><a class="btn" href={`/${town.slug}/homes`}>See it on the Homes page</a> <a class="btn ghost" href={`/${town.slug}/homes/list`}>Add another</a></p> :
     <form class="card" method="post" action="/api/listing">
       <input type="hidden" name="town" value={town.slug} />
