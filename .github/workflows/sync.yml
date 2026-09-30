@@ -1,0 +1,22 @@
+name: sync-site
+on:
+  push:
+    paths: ['.github/workflows/sync.yml']
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply site changes
+        env:
+          SRC: "https://acmhtvmqekccmlcueweg.supabase.co/storage/v1/object/sign/handoff/site.zip?token=eyJraWQiOiJjY2VhYmY2OC0yNjRmLTQ1YzUtYjk0Yy1lYTcyN2IyMWE1MmIiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJoYW5kb2ZmL3NpdGUuemlwIiwic2NvcGUiOiJkb3dubG9hZCIsImlhdCI6MTc5MDc3NzA5OCwiZXhwIjoxNzkwNzgwNjk4fQ.7nSI-8jjuFn9pbuLhzHtBZg6RPwnw3q22513e-nu1VSXOXlRaCaFZhNc61TpM-pQm2Cco3s6LBjkviQF33-Quw"
+        run: |
+          curl -sfL "$SRC" -o /tmp/d.zip
+          unzip -oq /tmp/d.zip -d .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A src
+          git commit -m "Business-facing listing and advertise updates (live Sep 30)"
+          git push
