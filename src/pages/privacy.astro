@@ -1,0 +1,24 @@
+---
+import Base from "../layouts/Base.astro";
+Astro.response.headers.set("Cache-Control", "public, max-age=86400");
+---
+<Base title="Privacy policy — Cleburne Wire" desc="What Cleburne Wire collects, why, who helps us run the site, and how to unsubscribe or have your information deleted.">
+  <header class="page-head"><h1>Privacy policy</h1><p class="dek">Plain version: we collect as little as we can, we never sell it, and you can leave anytime. Last updated September 30, 2026.</p></header>
+  <div class="single">
+    <h3 class="group">What we collect</h3>
+    <p><b>If you sign up for the email:</b> your email address, which town you signed up for, and a referral code so we can credit you when a neighbor joins with your link.</p>
+    <p><b>When you read the site:</b> we count page views without advertising cookies and without storing your IP address. For each view we record the page, where you came from (for example Facebook or Google), whether you're on a phone or computer, and a random ID kept in your browser so a returning reader isn't counted twice. If you arrive through a friend's share link, a small first-party cookie remembers that for 30 days so they get credit.</p>
+    <p><b>If you update a business or church listing:</b> the details you submit (such as website, hours, phone or photo) are published on that listing.</p>
+    <p><b>If you buy a sponsorship:</b> Stripe handles the payment. We never see or store card numbers. We keep your business name, email and website to run your placement and your results page.</p>
+    <h3 class="group">How we use it</h3>
+    <p>To send the email you asked for, to run listings and sponsorships, and to count readership. Sponsors see totals (views and clicks on their own placement), never who you are.</p>
+    <h3 class="group">Who helps us run the site</h3>
+    <p>Netlify hosts the site, Supabase stores our data, Stripe processes payments, and an email service delivers the newsletter. They handle data only to provide those services. <b>We do not sell or rent personal information.</b></p>
+    <h3 class="group">Your choices</h3>
+    <p>Every email has an unsubscribe link. To have your email address or a listing change removed, write to <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a> and we'll take care of it.</p>
+    <h3 class="group">Kids</h3>
+    <p>The site is for a general audience. We don't knowingly collect personal information from children under 13.</p>
+    <h3 class="group">Changes</h3>
+    <p>If this policy changes, we'll update the date at the top of this page.</p>
+  </div>
+</Base>
