@@ -1,3 +1,6 @@
 ---
-return Astro.redirect("/cleburne");
+// The bare domain permanently points at the first active town, so search engines treat that page as the home page.
+import { getTowns } from "../lib/db";
+const towns = await getTowns();
+return Astro.redirect(`/${towns[0]?.slug ?? "cleburne"}`, 301);
 ---
