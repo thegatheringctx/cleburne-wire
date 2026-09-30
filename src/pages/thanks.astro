@@ -1,14 +1,16 @@
 ---
 import Base from "../layouts/Base.astro";
 import { sb } from "../lib/db";
+import { emailSendingOn } from "../lib/flags";
 const code = /^[0-9a-f]{8}$/.test(Astro.url.searchParams.get("c") ?? "") ? Astro.url.searchParams.get("c") : null;
 const count = code ? ((await sb.rpc("referral_count", { p_code: code })).data ?? 0) : 0;
 const link = code ? `https://cleburnewire.com/r/${code}` : "https://cleburnewire.com";
 const msg = `I get Cleburne's news every morning from Cleburne Wire. Free, 5 minutes: ${link}`;
+const emailOn = await emailSendingOn();
 Astro.response.headers.set("Cache-Control", "private, no-store");
 ---
 <Base title="You're in. Welcome to Cleburne Wire">
-  <header class="page-head"><h1>You're in.</h1><p class="dek">Your first morning email arrives at 7 on the next weekday. Check your promotions tab if you don't see it, and move it to your inbox.</p></header>
+  <header class="page-head"><h1>You're in.</h1><p class="dek">{emailOn ? "Your first morning email arrives at 7 on the next weekday. Check your promotions tab if you don't see it, and move it to your inbox." : "You're on the list. We'll email you when the next edition goes out. Until then, the latest is always on the site."}</p></header>
   <div class="single">
     <section class="refer-box">
       <h2>Know someone who'd want this?</h2>
