@@ -45,5 +45,6 @@ Astro.response.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600
 
     {(news ?? []).length > 0 && <><h3 class="group">In the news</h3><ul class="plain">{news!.map((n: any) => <li><a href={`/${town.slug}/s/${n.id}`}>{n.title}</a><small>{new Date(n.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" })}</small></li>)}</ul></>}
     {nearby.length > 0 && <><h3 class="group">Nearby {cat?.name ? cat.name.toLowerCase() : "places"}</h3>{nearby.map((x: any) => <BizRow b={x} i={null} {town} />)}</>}
+    <p class="fix">Closed, moved, or wrong hours? <a href={`mailto:news@cleburnewire.com?subject=${encodeURIComponent(`Listing fix: ${b.name}`)}&body=${encodeURIComponent(`What's wrong with this listing?\n\n${Astro.url.origin}/${town.slug}/biz/${b.slug}`)}`}>Tell us</a> and we'll fix it.</p>
   </Page>
 </Base>
