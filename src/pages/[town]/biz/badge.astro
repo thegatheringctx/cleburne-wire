@@ -1,0 +1,21 @@
+---
+// Copy-and-paste badge for a listed business: links their website visitors to their listing here.
+import Base from "../../../layouts/Base.astro";
+import Page from "../../../components/Page.astro";
+import { getTown, sb } from "../../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/");
+const slug = Astro.url.searchParams.get("b") ?? "";
+const { data: b } = slug ? await sb.from("businesses").select("slug,name").eq("slug", slug).eq("active", true).maybeSingle() : { data: null };
+const site = Astro.url.origin;
+const href = b ? `${site}/${town.slug}/biz/${b.slug}` : `${site}/${town.slug}/guide`;
+const code = `<a href="${href}"><img src="${site}/badge/${town.slug}.svg" alt="Find us on ${town.name} Wire" width="200" height="56"></a>`;
+Astro.response.headers.set("Cache-Control", "public, max-age=3600");
+---
+<Base title={`Badge for your website — ${town.name} Wire`} {town}>
+  <Page {town} title={b ? `A badge for ${b.name}` : "A badge for your website"} dek={`Show customers you're in the ${town.name} Guide. Free, and it links straight to your listing.`} rail={false}>
+    <p><img src={`/badge/${town.slug}.svg`} alt={`Find us on ${town.name} Wire`} width="200" height="56" /></p>
+    <p><b>Copy this code</b> and paste it into your website, anywhere HTML is allowed (most site builders have an "embed" or "custom HTML" block).</p>
+    <textarea readonly rows="4" style="width:100%;font:13px/1.4 monospace;padding:.6rem;border:1px solid var(--line,#DCE3EA);border-radius:4px" onclick="this.select()">{code}</textarea>
+    <p><button class="btn" type="button" onclick="navigator.clipboard.writeText(this.closest('article,main,div').querySelector('textarea').value);this.textContent='Copied'">Copy code</button> {b && <a class="btn ghost" href={`/${town.slug}/biz/${b.slug}`}>Back to the listing</a>}</p>
+  </Page>
+</Base>
