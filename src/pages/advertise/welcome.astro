@@ -1,14 +1,37 @@
 ---
+// Post-checkout welcome. Stripe redirects here with ?session_id=...; the page asks sponsor-lookup for this buyer's
+// private results link (polling briefly while the Stripe webhook finishes creating the sponsor).
 import Base from "../../layouts/Base.astro";
+const session = Astro.url.searchParams.get("session_id") ?? "";
+const fn = `${import.meta.env.PUBLIC_SUPABASE_URL}/functions/v1/sponsor-lookup`;
+Astro.response.headers.set("Cache-Control", "private, no-store");
 ---
 <Base title="Welcome aboard, sponsor">
   <header class="page-head"><h1>Thank you. You're live.</h1><p class="dek">Your placement turns on automatically within a few minutes, built from your business name and website.</p></header>
   <div class="single">
+    <div class="notice" id="results" data-session={session} data-fn={fn} style="margin-bottom:1.2rem">
+      <b>Your private results page</b><br/><span id="results-msg">{session ? "Setting it up, one moment…" : "Your results link is on the Stripe receipt page you just left. Questions? news@cleburnewire.com."}</span>
+    </div>
     <div class="util-grid">
+      <div class="util"><b>Bookmark your results</b><span>Your results page shows how often your placement was seen and clicked, updated live. Only people with the link can see it.</span></div>
       <div class="util"><b>Change your ad</b><span>Send a different line, a logo or a special offer to news@cleburnewire.com.</span></div>
-      <div class="util"><b>See your results</b><span>Your private results page arrives by email within a day, and a report on the 1st of every month.</span></div>
       <div class="util"><b>Cancel anytime</b><span>Use the link in your Stripe receipt. No contracts.</span></div>
     </div>
-    <p><a class="btn" href="/cleburne">See Cleburne Wire</a></p>
+    <p><a class="btn ghost" href="/">See the site</a></p>
   </div>
+  <script is:inline>
+    (async () => {
+      const box = document.getElementById("results"); const msg = document.getElementById("results-msg");
+      const s = box?.dataset.session; if (!s) return;
+      for (let i = 0; i < 12; i++) {
+        try {
+          const r = await fetch(`${box.dataset.fn}?session_id=${encodeURIComponent(s)}`); const j = await r.json();
+          if (j.results) { msg.innerHTML = ""; const a = document.createElement("a"); a.className = "btn"; a.href = j.results; a.textContent = "Open my results page"; msg.append(`Ready for ${j.business}. Bookmark this link: `, document.createElement("br"), a); return; }
+          if (!j.pending) break;
+        } catch {}
+        await new Promise((res) => setTimeout(res, 3000));
+      }
+      msg.textContent = "It's taking longer than usual. Email news@cleburnewire.com with your business name and we'll send your link.";
+    })();
+  </script>
 </Base>
