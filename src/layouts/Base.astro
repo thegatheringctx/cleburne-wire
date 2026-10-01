@@ -1,13 +1,18 @@
 ---
 import "../styles/global.css";
-import { getTowns } from "../lib/db";
+import { getTowns, sb } from "../lib/db";
 import { emailSendingOn } from "../lib/flags";
-const { title, town, alerts = [], image = null, desc = "Up-to-date news, alerts, meetings, sports, events and obituaries for Cleburne, Texas." } = Astro.props;
-const [towns, emailOn] = await Promise.all([getTowns(), emailSendingOn()]); const slug = town?.slug ?? "cleburne";
+const { title, town, alerts = [], image = null, desc: descProp } = Astro.props;
+// Pages that aren't about one town (advertise, about, privacy) use the primary (first-launched) town for branding.
+const [towns, emailOn, primary] = await Promise.all([getTowns(), emailSendingOn(),
+  town ? Promise.resolve(null) : sb.from("towns").select("name,slug,county,profile").eq("active", true).order("created_at").limit(1).maybeSingle().then((r) => r.data)]);
+const T: any = town ?? primary ?? { name: "Cleburne", slug: "cleburne", county: "Johnson", profile: {} };
+const slug = T.slug;
+const desc = descProp ?? `Up-to-date news, alerts, meetings, sports, events and obituaries for ${T.name}, Texas.`;
 // Search-result hygiene for every page: titles <= 65 chars, descriptions 70-160 chars, cut at a word boundary.
 const clip = (x: string, n: number) => (x ?? "").length <= n ? (x ?? "") : (x ?? "").slice(0, n - 1).replace(/[\s,;:.\u2014-]+\S*$/, "") + "\u2026";
 const pageTitle = (title ?? "").length > 65 ? clip(String(title).replace(/\s+\u2014\s+[^\u2014]+ Wire$/, ""), 65) : title;
-const pageDesc = (() => { let d = String(desc ?? "").replace(/\s+/g, " ").trim(); if (d.length < 70) d = `${d} Local news, events and guides for ${town?.name ?? "Cleburne"}, Texas, from Cleburne Wire.`.trim(); return clip(d, 158); })();
+const pageDesc = (() => { let d = String(desc ?? "").replace(/\s+/g, " ").trim(); if (d.length < 70) d = `${d} Local news, events and guides for ${T.name}, Texas, from ${T.name} Wire.`.trim(); return clip(d, 158); })();
 ---
 <html lang="en"><head>
   <meta charset="utf-8" />
@@ -18,27 +23,27 @@ const pageDesc = (() => { let d = String(desc ?? "").replace(/\s+/g, " ").trim()
   <link rel="canonical" href={`https://cleburnewire.com${Astro.url.pathname}`} />
   <meta property="og:url" content={`https://cleburnewire.com${Astro.url.pathname}`} />
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Cleburne Wire" />
+  <meta property="og:site_name" content={`${T.name} Wire`} />
   <meta name="twitter:card" content="summary_large_image" />
   {image && <meta property="og:image" content={image} />}{image && <meta name="twitter:image" content={image} />}
   <script type="application/ld+json" set:html={JSON.stringify({
     "@context": "https://schema.org", "@type": "NewsMediaOrganization",
-    "name": "Cleburne Wire", "url": "https://cleburnewire.com",
+    "name": `${T.name} Wire`, "url": "https://cleburnewire.com",
     "logo": "https://cleburnewire.com/favicon.svg",
-    "description": "Automated local news, weather, roads, obituaries, sports and events for Cleburne, Texas.",
-    "areaServed": { "@type": "City", "name": "Cleburne", "containedInPlace": { "@type": "AdministrativeArea", "name": "Johnson County, Texas" } },
-    "sameAs": ["https://www.facebook.com/CleburneWire"]
+    "description": `Automated local news, weather, roads, obituaries, sports and events for ${T.name}, Texas.`,
+    "areaServed": { "@type": "City", "name": T.name, "containedInPlace": { "@type": "AdministrativeArea", "name": `${T.county ?? ""} County, Texas` } },
+    "sameAs": [T.profile?.facebook_url].filter(Boolean)
   })} />
 </head><body>
   <header class="mast"><div class="wrap">
-    <a class="brand" href={`/${slug}`}>{town?.name ?? "Cleburne"} <span>Wire</span></a>
+    <a class="brand" href={`/${slug}`}>{T.name} <span>Wire</span></a>
     <nav aria-label="Main"><a href={`/${slug}/weekend`}>This weekend</a><a href={`/${slug}/sports`}>Sports</a><a href={`/${slug}/guide`}>Guide</a><a href={`/${slug}/homes`}>Homes</a><a href={`/${slug}/obituaries`}>Obituaries</a><a class="adv" href="/advertise">Advertise</a><a class="srch" href="/search" aria-label="Search"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10 3a7 7 0 0 1 5.6 11.2l4.6 4.6-1.4 1.4-4.6-4.6A7 7 0 1 1 10 3Zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z"/></svg></a><a class="cta" href="#join"><span class="long">Get the daily email</span><span class="short">Subscribe</span></a></nav>
     <details class="menu"><summary aria-label="Menu"><span></span><span></span><span></span></summary>
       <div class="menu-panel">
-        <form method="get" action="/search" class="menu-search"><input name="q" placeholder="Search Cleburne Wire" aria-label="Search" /></form>
+        <form method="get" action="/search" class="menu-search"><input name="q" placeholder={`Search ${T.name} Wire`} aria-label="Search" /></form>
         <a href={`/${slug}`}>Top stories</a><a href={`/${slug}/follow`}>Stories we're following</a><a href={`/${slug}/weekend`}>This weekend</a><a href={`/${slug}/events`}>Events calendar</a><a href={`/${slug}/sports`}>Sports</a><a href={`/${slug}/pickem`}>Pick'em</a><a href={`/${slug}/quiz`}>Weekly quiz</a><a href={`/${slug}/photos`}>Photo of the week</a>
         <a href={`/${slug}/meetings`}>Public meetings</a><a href={`/${slug}/roads`}>Roads and outages</a><a href={`/${slug}/guide`}>The Guide</a><a href={`/${slug}/homes`}>Homes and money</a>
-        <a href={`/${slug}/obituaries`}>Obituaries</a><a href={`/${slug}/faith`}>Churches and community</a><a href={`/${slug}/pets`}>Lost and found pets</a><a href={`/${slug}/101`}>Cleburne 101</a>
+        <a href={`/${slug}/obituaries`}>Obituaries</a><a href={`/${slug}/faith`}>Churches and community</a><a href={`/${slug}/pets`}>Lost and found pets</a><a href={`/${slug}/101`}>{T.name} 101</a>
         <a href={`/${slug}/officials`}>Who represents you</a><a href="/submit">Send a tip</a><a href="/advertise">Advertise</a>
       </div>
     </details>
@@ -50,17 +55,17 @@ const pageDesc = (() => { let d = String(desc ?? "").replace(/\s+/g, " ").trim()
   <main class="wrap"><slot /></main>
   <footer><div class="wrap">
     <div class="join" id="join">
-      <h3>The {town?.name ?? "Cleburne"} morning email</h3>
+      <h3>The {T.name} morning email</h3>
       <p>{emailOn ? "Every weekday at 7. The day's news, weather and what's going on, in five minutes. Free." : "The day's news, weather and what's going on, in five minutes. Free. Join the list and we'll email you when the next edition goes out."}</p>
       <form method="post" action="/api/subscribe"><input type="hidden" name="town" value={slug} /><input type="email" name="email" placeholder="Your email" required aria-label="Email address" /><button class="btn">Subscribe</button></form>
     </div>
     <div class="fcols">
       <div><b>News</b><a href={`/${slug}`}>Top stories</a><a href={`/${slug}/news`}>Local news</a><a href={`/${slug}/crime`}>Police and crime</a><a href={`/${slug}/weather`}>Weather</a><a href={`/${slug}/obituaries`}>Obituaries</a><a href={`/${slug}/sports`}>Sports</a></div>
       <div><b>Around town</b><a href={`/${slug}/events`}>Events</a><a href={`/${slug}/weekend`}>This weekend</a><a href={`/${slug}/guide`}>The Guide</a><a href={`/${slug}/faith`}>Churches and community</a><a href={`/${slug}/openings`}>Opening and closing</a><a href={`/${slug}/pets`}>Lost and found pets</a><a href={`/${slug}/photos`}>Photo of the week</a><a href={`/${slug}/quiz`}>Weekly quiz</a><a href={`/${slug}/pickem`}>Pick'em</a></div>
-      <div><b>Civic</b><a href={`/${slug}/meetings`}>Public meetings</a><a href={`/${slug}/officials`}>Who represents you</a><a href={`/${slug}/schools`}>Schools</a><a href={`/${slug}/roads`}>Roads and outages</a><a href={`/${slug}/101`}>Cleburne 101</a><a href={`/${slug}/homes`}>Homes and money</a></div>
-      <div><b>Cleburne Wire</b><a href="/about">What we cover</a><a href="/submit">Send a tip</a><a href={`/${slug}/jobs`}>Jobs</a><a href="/advertise">Advertise</a><a href="/partners">News box for your site</a><a href="/search">Search</a><a href="https://www.facebook.com/CleburneWire" rel="noopener">Facebook</a></div>
+      <div><b>Civic</b><a href={`/${slug}/meetings`}>Public meetings</a><a href={`/${slug}/officials`}>Who represents you</a><a href={`/${slug}/schools`}>Schools</a><a href={`/${slug}/roads`}>Roads and outages</a><a href={`/${slug}/101`}>{T.name} 101</a><a href={`/${slug}/homes`}>Homes and money</a></div>
+      <div><b>{T.name} Wire</b><a href="/about">What we cover</a><a href="/submit">Send a tip</a><a href={`/${slug}/jobs`}>Jobs</a><a href="/advertise">Advertise</a><a href="/partners">News box for your site</a><a href="/search">Search</a>{T.profile?.facebook_url && <a href={T.profile.facebook_url} rel="noopener">Facebook</a>}</div>
     </div>
-    <div class="fbase"><span class="brand">{town?.name ?? "Cleburne"} <span>Wire</span></span><span>Local news for {town?.name ?? "Cleburne"}, Texas. Every story links to its original source. Corrections: <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span></div>
+    <div class="fbase"><span class="brand">{T.name} <span>Wire</span></span><span>Local news for {T.name}, Texas. Every story links to its original source. Corrections: <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span></div>
   </div></footer>
   <script is:inline>
     // Referral: remember who shared the site with this visitor, and credit them on signup
