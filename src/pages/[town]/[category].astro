@@ -9,7 +9,9 @@ if (!cat) return Astro.rewrite("/404");
 // "Local news" is the everything-local feed: all news categories, minus listings-style sections that have their own pages.
 const NOT_NEWS = ["events", "weather", "obituaries", "jobs", "pets", "sports"];
 const [raw0, alerts] = await Promise.all([getFeed(town.id, cat.slug === "news" ? undefined : cat.slug, cat.slug === "events" ? 200 : cat.slug === "news" ? 120 : 60), getAlerts(town.id)]);
-const raw = cat.slug === "news" ? raw0.filter((s: any) => !NOT_NEWS.includes(s.category)).slice(0, 60) : raw0;
+const seenT = new Set<string>();
+const raw = (cat.slug === "news" ? raw0.filter((s: any) => !NOT_NEWS.includes(s.category) && !s.event_at) : raw0)
+  .filter((s: any) => { if (cat.slug === "events") return true; const k = s.title.toLowerCase().trim(); if (seenT.has(k)) return false; seenT.add(k); return true; }).slice(0, 60);
 // Events: soonest first, upcoming only (recurring classes collapse to their next date in Feed)
 const stories = cat.slug === "events"
   ? raw.filter((s: any) => s.event_at && new Date(s.event_at).getTime() > Date.now() - 36e5).sort((a: any, b: any) => +new Date(a.event_at) - +new Date(b.event_at))
@@ -23,7 +25,7 @@ const DEKS: Record<string, string> = {
   weather: `Today's forecast and active weather alerts for ${town.name}.`,
   government: `City council, the county courthouse and every board that decides how ${town.name} grows.`,
   schools: `School board decisions, campus news and what parents need to know.`,
-  sports: `${town.name} Yellow Jackets scores, schedules and stories.`,
+  sports: `${town.name}${town.team_name ? ` ${town.team_name}` : ""} scores, schedules and stories.`,
   business: `Openings, closings, development and jobs across ${town.name}.`,
   "real-estate": `Land sales, new developments and the local housing market.`,
   events: `What's happening in ${town.name}, soonest first. Recurring classes show their next date.`,
