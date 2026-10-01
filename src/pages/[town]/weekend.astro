@@ -7,10 +7,11 @@ const [alerts, ad, gRes] = await Promise.all([getAlerts(town.id), getAds(town.id
   sb.from("guides").select("*").eq("town_id", town.id).eq("kind", "weekend").order("week_of", { ascending: false }).limit(1).maybeSingle()]);
 const g = gRes.data;
 const boosts = await getBoosts(town.id);
-// The guide publishes Thursday (week_of) and covers Friday through Sunday. It expires at midnight Sunday, Central time;
-// after that the page shows the week ahead until Thursday's new guide publishes.
-const thu = g ? new Date(g.week_of + "T12:00:00Z") : null;
-const stale = !!thu && Date.now() > thu.getTime() + 3 * 864e5 + 17 * 36e5;
+// The guide publishes Thursday and is dated (week_of) the Friday it covers, Friday through Sunday. It expires at
+// midnight Sunday, Central time; after that the page shows the week ahead until Thursday's new guide publishes.
+const fri0 = g ? new Date(g.week_of + "T12:00:00Z") : null;
+const thu = fri0 ? new Date(fri0.getTime() - 864e5) : null;
+const stale = !!fri0 && Date.now() > fri0.getTime() + 2 * 864e5 + 17 * 36e5;
 const fmtD = (d: Date, o: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-US", { timeZone: "UTC", ...o });
 const span = thu ? (() => { const fri = new Date(thu.getTime() + 864e5), sun = new Date(thu.getTime() + 3 * 864e5);
   return fri.getUTCMonth() === sun.getUTCMonth() ? `${fmtD(fri, { month: "short", day: "numeric" })}\u2013${fmtD(sun, { day: "numeric" })}` : `${fmtD(fri, { month: "short", day: "numeric" })}\u2013${fmtD(sun, { month: "short", day: "numeric" })}`; })() : "";
