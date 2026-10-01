@@ -1,18 +1,24 @@
 ---
 import Base from "../layouts/Base.astro";
-import { getTowns } from "../lib/db"; const towns = await getTowns();
+import { sb } from "../lib/db";
+// Town comes from ?town= (links from a town's pages pass it); otherwise the primary (first-launched) town.
+const { data: towns } = await sb.from("towns").select("name,slug,county,profile").eq("active", true).order("created_at");
+const T = (towns ?? []).find((t: any) => t.slug === Astro.url.searchParams.get("town")) ?? towns?.[0] ?? { name: "Cleburne", slug: "cleburne" };
+// A tip sent from under a story carries that story's headline, so the tip email says what it's about.
+const about = (Astro.url.searchParams.get("about") ?? "").slice(0, 300);
 const pre = Astro.url.searchParams.get("kind") ?? "event";
 const sent = Astro.url.searchParams.get("sent") === "1";
 const K = [["event","An event"],["lost_pet","A lost pet"],["found_pet","A found pet"],["garage_sale","A garage or estate sale"],["job","A job opening (free for 30 days)"],["business","A new business"],["tip","A news tip"]];
 ---
-<Base title="Send a tip or post an event, pet, sale or job — Cleburne Wire">
-  <header class="page-head"><h1>Tell the town</h1><p class="dek">Events, lost and found pets, garage sales, job openings and news tips. Free, and usually live within the hour after a quick automatic check.</p></header>
+<Base title={`Send a tip or post an event, pet, sale or job — ${T.name} Wire`} town={T}>
+  <header class="page-head"><h1>Tell the town</h1><p class="dek">Events, lost and found pets, garage sales and job openings are free and usually live within the hour after a quick automatic check. News tips go to the editor and are checked before anything is published.</p></header>
   <div class="single">
-    {sent && <div class="notice" style="border-left:6px solid var(--gold)"><b>Got it, thank you.</b> Your post is being checked and usually goes live within the hour. Have another? Send it below.</div>}
+    {sent && <div class="notice" style="border-left:6px solid var(--gold)"><b>Got it, thank you.</b> Events, pets, sales and jobs usually go live within the hour. News tips go to the editor. Have another? Send it below.</div>}
     <form class="card" method="post" action="/api/submit">
       <input type="text" name="website" style="display:none" tabindex="-1" autocomplete="off" />
       <label>What are you sharing?<select name="kind" required>{K.map(([v, l]) => <option value={v} selected={v === pre}>{l}</option>)}</select></label>
-      <input type="hidden" name="town" value={towns[0]?.slug ?? "cleburne"} />
+      <input type="hidden" name="town" value={T.slug} />{about && <input type="hidden" name="about" value={about} />}
+      {about && <p class="fix" style="margin-top:0">About: <b>{about}</b></p>}
       <label>Headline<input name="title" placeholder="Fall Festival at Hulen Park" required maxlength="120" /></label>
       <label>Details<textarea name="details" rows="5" required placeholder="What, who it's for, cost, anything people should know"></textarea></label>
       <label>When (if it applies)<input name="when" placeholder="Saturday, Oct. 10, 8 to 11 a.m." /></label>
@@ -21,7 +27,7 @@ const K = [["event","An event"],["lost_pet","A lost pet"],["found_pet","A found 
       <label>Your email (not published)<input name="email" type="email" required /></label>
       <label>Phone (optional, not published)<input name="phone" /></label>
       <button class="btn">Send it in</button>
-      <p class="fix">Prefer email? Send it to <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a>. Churches can <a href="/cleburne/faith/add">add or update their listing here</a>.</p>
+      <p class="fix">Prefer email? Send it to <a href="mailto:news@cleburnewire.com">news@cleburnewire.com</a>. Churches can <a href={`/${T.slug}/faith/add`}>add or update their listing here</a>.</p>
     </form>
   </div>
 </Base>
