@@ -11,11 +11,16 @@ if (!s) return Astro.rewrite("/404");
 const [alerts, ad] = await Promise.all([getAlerts(town.id), getAds(town.id, "sidebar")]);
 
 
-const { data: moreRows } = await sb.from("stories").select("id,title,published_at").eq("status","published").eq("category", s.category).neq("id", s.id).is("event_at", null).order("published_at",{ascending:false}).limit(6);
+const { data: moreRows } = await sb.from("stories").select("id,title,published_at").eq("status","published").eq("category", s.category).or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).not("local_checked_at", "is", null).neq("id", s.id).is("event_at", null).order("published_at",{ascending:false}).limit(6);
 const more = moreRows ?? [];
 const { data: slLink } = await sb.from("storyline_stories").select("storylines(slug,title,summary,status)").eq("story_id", s.id).limit(1).maybeSingle();
 const storyline = (slLink as any)?.storylines?.status === "active" ? (slLink as any).storylines : null;
 const emailOn = await emailSendingOn();
+// "Today in town": the day's top local stories, shown right under the story so a reader arriving from Facebook or
+// Google has somewhere to go next. Grave stories (crime, deaths) don't get it, matching the social posting rules.
+const grave = ["crime", "obituaries"].includes(s.category);
+const { data: topRows } = grave ? { data: [] } : await sb.rpc("top_stories", { p_town: town.slug, p_hours: 48, p_limit: 10 });
+const today = (topRows ?? []).filter((x: any) => x.id !== s.id && !["events", "weather", "obituaries"].includes(x.category)).slice(0, 4);
 ---
 <Base title={`${s.title} — ${town.name} Wire`} {town} {alerts} desc={s.summary ?? s.title} image={`${import.meta.env.PUBLIC_SUPABASE_URL}/functions/v1/card?id=${s.id}`}>
   <script type="application/ld+json" set:html={JSON.stringify({
@@ -53,6 +58,12 @@ const emailOn = await emailSendingOn();
         <button class="sh" type="button" onclick="navigator.clipboard.writeText(location.href.split('?')[0]);this.textContent='Link copied'">Copy link</button>
       </div>
       <script is:inline define:vars={{ id: s.id }}>try{navigator.sendBeacon&&navigator.sendBeacon('/api/view/'+id)}catch(e){}</script>
+      {today.length > 0 && <section class="today-list" style="margin:1.6rem 0 .4rem">
+        <div class="sec"><h3>Today in {town.name}</h3><a href={`/${town.slug}`}>All of today's news</a></div>
+        <ol>{today.map((t: any) => <li><a href={`/${town.slug}/s/${t.id}`}>
+          {t.image_url ? <img referrerpolicy="no-referrer" src={t.image_url} alt="" loading="lazy" onerror="this.onerror=null;this.remove()" /> : <span class={`tl-ic c-${t.category}`}></span>}
+          <span class="tl-t"><small class={`c-${t.category}`}>{t.category.replace("-", " ")}</small>{niceTitle(t.title)}</span></a></li>)}</ol>
+      </section>}
       <SubscribeBand {town} />
       {more.length > 0 && <section class="more-list"><h3 class="group">More {s.category.replace("-"," ")} <a href={`/${town.slug}/${s.category}`}>See all</a></h3>
         <ul class="plain">{more.map((m) => <li><a href={`/${town.slug}/s/${m.id}`}>{m.title}</a><small>{fmtTime(m.published_at)}</small></li>)}</ul></section>}
