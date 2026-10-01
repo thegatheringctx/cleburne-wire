@@ -8,7 +8,7 @@ const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect
 const [{ data: top }, fc, { count: subs }, emailOn] = await Promise.all([
   sb.rpc("top_stories", { p_town: town.slug, p_hours: 48, p_limit: 10 }),
   forecast(town),
-  sb.from("subscribers").select("id", { count: "exact", head: true }).eq("unsubscribed", false),
+  sb.rpc("subscriber_count").then((r) => ({ count: r.data ?? 0 })),
   emailSendingOn(),
 ]);
 const heads = (top ?? []).filter((s: any) => !["events", "weather", "obituaries", "crime"].includes(s.category)).slice(0, 3);
