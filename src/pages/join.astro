@@ -1,0 +1,6 @@
+---
+// /join (the link used in ads) goes to the first launched town's signup page, keeping any ad tracking tags.
+import { getTowns } from "../lib/db";
+const towns = await getTowns();
+return Astro.redirect(`/${towns[0]?.slug ?? "cleburne"}/join${Astro.url.search}`, 302);
+---
