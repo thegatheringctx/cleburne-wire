@@ -10,7 +10,10 @@ const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect
 const now = new Date(); const wkEnd = new Date(now.getTime() + 7 * 864e5);
 const FN = import.meta.env.PUBLIC_SUPABASE_URL + "/functions/v1";
 const [stories, alerts, cats, eventsRes, wxRes, picks, obits] = await Promise.all([
-  getFeed(town.id, undefined, 45), getAlerts(town.id), getCategories(),
+  // News only (no calendar items): events have their own lists, and a busy calendar must never crowd out the news.
+  sb.from("stories").select("*").eq("status", "published").or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).not("local_checked_at", "is", null)
+    .not("category", "in", "(events,weather,obituaries)").is("event_at", null).gte("published_at", new Date(Date.now() - 21 * 864e5).toISOString())
+    .order("published_at", { ascending: false }).limit(60).then((r) => r.data ?? []), getAlerts(town.id), getCategories(),
   sb.from("stories").select("id,title,event_at,location").eq("status","published").eq("category","events").or(`town_ids.cs.{${town.id}},town_ids.eq.{}`).gte("event_at", now.toISOString()).lte("event_at", wkEnd.toISOString()).order("event_at").limit(40),
   sb.from("stories").select("title,summary").eq("category","weather").ilike("title", `${town.name} weather%`).order("published_at", { ascending: false }).limit(1).maybeSingle(),
   getBusinesses(town.id, undefined, 400),
@@ -38,10 +41,12 @@ const { data: civic } = await sb.from("explainers").select("slug,title,dek").eq(
 const seen = new Set<string>();
 const events = (eventsRes.data ?? []).filter((e) => { const k = e.title.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
 const wx = wxRes.data;
-const news = stories.filter((s) => !["events","obituaries","weather"].includes(s.category));
+const seenT = new Set<string>();
+const news = stories.filter((s: any) => { const k = s.title.toLowerCase().trim(); if (seenT.has(k)) return false; seenT.add(k); return true; });
 const fresh = news.filter((s) => Date.now() - +new Date(s.published_at) < 2.5 * 864e5);
 const pool = fresh.length >= 3 ? fresh : news;
-const lead = [...pool].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || +new Date(b.published_at) - +new Date(a.published_at)).find((s) => s.image_url) ?? pool[0];
+const leadPool = pool.filter((s: any) => !/ Wire$/.test(s.source_name ?? ""));
+const lead = [...(leadPool.length ? leadPool : pool)].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || +new Date(b.published_at) - +new Date(a.published_at)).find((s) => s.image_url) ?? pool[0];
 const rest0 = news.filter((s) => s.id !== lead?.id);
 const top6 = [...rest0].sort((a, b) => ((b.score ?? 0) - (a.score ?? 0)) || (+new Date(b.published_at) - +new Date(a.published_at))).slice(0, 6);
 const trio: any[] = [];
@@ -112,7 +117,7 @@ const emailOn = await emailSendingOn();
     <div class="play-grid">
       <a class="pl pl-pick" href={`/${town.slug}/pickem`}><span>Pick'em</span><b>{ng ? `Call the score: ${ng.home ? "vs" : "at"} ${ng.opponent}` : `${town.team_name ?? "Football"} Pick'em`}</b><small>Season leaderboard. Picks close at kickoff.</small></a>
       <a class="pl pl-quiz" href={`/${town.slug}/quiz`}><span>Weekly quiz</span><b>{qz?.title ?? `The ${town.name} news quiz`}</b><small>Five questions. How well do you know this week?</small></a>
-      <a class="pl pl-photo" href={`/${town.slug}/photos`} style={topPhoto ? `--bg:url('${import.meta.env.PUBLIC_SUPABASE_URL}/storage/v1/object/public/reader-photos/${topPhoto.path}')` : ""}><span>Photo of the week</span><b>{topPhoto?.caption ?? "Share your best shot of Cleburne"}</b><small>Submit a photo or vote for your favorite.</small></a>
+      <a class="pl pl-photo" href={`/${town.slug}/photos`} style={topPhoto ? `--bg:url('${import.meta.env.PUBLIC_SUPABASE_URL}/storage/v1/object/public/reader-photos/${topPhoto.path}')` : ""}><span>Photo of the week</span><b>{topPhoto?.caption ?? `Share your best shot of ${town.name}`}</b><small>Submit a photo or vote for your favorite.</small></a>
     </div>
   </section>
 
