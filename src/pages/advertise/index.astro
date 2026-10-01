@@ -14,7 +14,7 @@ const L = {
 };
 const [{ data: taken }, { count: subs }, { count: founders }, { count: biz }, { count: partners }] = await Promise.all([
   sb.from("ads").select("category,placement").eq("active", true).in("placement", ["category-sponsor", "newsletter"]),
-  sb.from("subscribers").select("id", { count: "exact", head: true }),
+  sb.rpc("subscriber_count").then((r) => ({ count: r.data ?? 0 })),
   sb.from("sponsors").select("id", { count: "exact", head: true }).eq("active", true),
   sb.from("businesses").select("id", { count: "exact", head: true }).eq("active", true),
   sb.from("sponsors").select("id", { count: "exact", head: true }).eq("active", true).eq("plan", "partner"),
@@ -28,7 +28,9 @@ const foundingLeft = Math.max(0, 10 - (founders ?? 0));
 const readers = (await sb.rpc("readers_30d")).data ?? 0;
 // Email placements are only sold while the morning email is actually sending (app_settings.email_sending = 'on').
 const emailOn = (await sb.rpc("email_sending_on")).data !== false;
-const showAudience = (subs ?? 0) >= 250 || readers >= 2000;
+// Real numbers, always shown: an advertiser should see the audience before paying, even while it is small.
+const { data: pv30 } = await sb.rpc("site_stats_30d");
+const stats = (pv30 ?? {}) as any;
 Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
 ---
 <Base title={`Advertise on ${town.name} Wire: reach ${town.name} every day`} desc={`Sponsor ${town.name}'s daily local news. Event boosts from $25, featured listings from $30 a month, and exclusive section sponsorships. Founding rates, cancel anytime.`}>
@@ -49,7 +51,7 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300")
       <a class="btn ghost" href={L.listing}>Get featured</a></div>
     <div class="tier best"><span class="t-flag">Best value</span><span class="t-name">Local Partner</span><div class="t-price">$149<small>/mo</small></div>
       <ul><li>Everything in Featured Listing</li><li>Your ad across the site, in the news feed and sidebar</li>{emailOn && <li>Your own day in the morning email every week (5 partners max)</li>}<li>Live results page, yours the moment you pay</li></ul>
-      <p class="avail">{partnersLeft ? `${partnersLeft} of 5 spots open` : "All 5 spots are taken. Ask to join the waitlist."}</p>
+      <p class="avail">{partnersLeft ? "Limited to 5 businesses" : "All 5 spots are taken. Ask to join the waitlist."}</p>
       {partnersLeft ? <a class="btn" href={L.partner}>Become a Local Partner</a> : <a class="btn ghost" href="mailto:news@cleburnewire.com?subject=Local%20Partner%20waitlist">Join the waitlist</a>}</div>
     <div class="tier"><span class="t-name">Section Sponsor</span><div class="t-price">$249<small>/mo</small></div>
       <ul><li>"Presented by" on one whole section, one sponsor each</li><li>Your name on every page of that section, all month, on phones and desktop</li></ul>
@@ -76,7 +78,15 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300")
       <div class="util"><b>No contracts</b><span>Month to month. Cancel from your receipt anytime.</span></div>
       <div class="util"><b>Live the same day</b><span>Pay online and your ad goes up automatically, built from your business name and website. Email changes anytime.</span></div>
     </div>
-    {showAudience && <div class="util-grid">{readers >= 2000 && <div class="util gold"><b style="font-size:2.2rem">{readers.toLocaleString()}</b><span>readers in the last 30 days</span></div>}{(subs ?? 0) >= 250 && <div class="util gold"><b style="font-size:2.2rem">{(subs ?? 0).toLocaleString()}</b><span>morning email subscribers</span></div>}<div class="util"><b style="font-size:2.2rem">{(biz ?? 0).toLocaleString()}</b><span>local businesses in the Guide</span></div></div>}
+    <h3 class="group">The audience today</h3>
+    <p style="margin-top:0">{town.name} Wire launched in September 2026 and is growing. These are the real numbers for the last 30 days, updated live:</p>
+    <div class="util-grid">
+      <div class="util gold"><b style="font-size:2.2rem">{Number(stats.readers ?? readers ?? 0).toLocaleString()}</b><span>people visited the site</span></div>
+      <div class="util gold"><b style="font-size:2.2rem">{Number(stats.views ?? 0).toLocaleString()}</b><span>pages viewed</span></div>
+      <div class="util"><b style="font-size:2.2rem">{(subs ?? 0).toLocaleString()}</b><span>morning email subscribers</span></div>
+      <div class="util"><b style="font-size:2.2rem">{(biz ?? 0).toLocaleString()}</b><span>local businesses in the Guide</span></div>
+    </div>
+    <p style="font-size:.9rem;color:var(--muted,#5B6878)">Founding rates are priced for a young audience and locked for 12 months. Your results page shows exactly how many people saw and clicked your ad.</p>
 
     <h3 class="group">Questions</h3>
     <dl class="faq">
