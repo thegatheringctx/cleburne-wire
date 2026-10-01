@@ -28,7 +28,7 @@ const today = (topRows ?? []).filter((x: any) => x.id !== s.id && !["events", "w
     "headline": s.title, "description": s.summary ?? s.title,
     "datePublished": s.published_at, "dateModified": s.published_at,
     "image": s.image_url ? [s.image_url] : undefined,
-    "publisher": { "@type": "NewsMediaOrganization", "name": "Cleburne Wire", "logo": { "@type": "ImageObject", "url": "https://cleburnewire.com/favicon.svg" } },
+    "publisher": { "@type": "NewsMediaOrganization", "name": `${town.name} Wire`, "logo": { "@type": "ImageObject", "url": "https://cleburnewire.com/favicon.svg" } },
     "mainEntityOfPage": { "@type": "WebPage", "@id": `https://cleburnewire.com/${town.slug}/s/${s.id}` },
     ...(s.source_url ? { "isBasedOn": s.source_url } : {}),
   })} />
@@ -67,6 +67,7 @@ const today = (topRows ?? []).filter((x: any) => x.id !== s.id && !["events", "w
       <SubscribeBand {town} />
       {more.length > 0 && <section class="more-list"><h3 class="group">More {s.category.replace("-"," ")} <a href={`/${town.slug}/${s.category}`}>See all</a></h3>
         <ul class="plain">{more.map((m) => <li><a href={`/${town.slug}/s/${m.id}`}>{m.title}</a><small>{fmtTime(m.published_at)}</small></li>)}</ul></section>}
+      {s.category !== "obituaries" && <div class="notice" style="margin:1.4rem 0 .6rem"><b>Know more about this?</b> Tips go straight to the editor and are never published without being checked. <a href={`/submit?kind=tip&town=${town.slug}&about=${encodeURIComponent(s.title)}`}>Send a tip</a></div>}
       <p class="fix">Something wrong or missing in this story? <a href={`mailto:news@cleburnewire.com?subject=${encodeURIComponent("Correction: " + s.title)}`}>Tell us</a> and we'll fix it.</p>
     </div>
     <Rail {town} exclude={s.id} />
