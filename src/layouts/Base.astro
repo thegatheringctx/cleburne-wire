@@ -83,6 +83,8 @@ const pageDesc = (() => { let d = String(desc ?? "").replace(/\s+/g, " ").trim()
       if(!src){ src = /facebook\.com|fb\.me|instagram\.com/i.test(r)?'facebook' : /google\./i.test(r)?'google' : /bing\.|duckduckgo|yahoo\./i.test(r)?'search' : /mailerlite|mlsend|mail\./i.test(r)?'email' : (r && r.indexOf(location.hostname)<0)?'other' : r?'internal':'direct'; }
       var k='cw_vid', v=localStorage.getItem(k); if(!v){ v=(crypto.randomUUID?crypto.randomUUID():String(Math.random()).slice(2)+Date.now()); localStorage.setItem(k,v); }
       if(src==='internal') src=sessionStorage.getItem('cw_src')||'direct'; else sessionStorage.setItem('cw_src',src);
+      // Tag every signup form with where this visit came from, so the list knows which channels bring subscribers.
+      document.querySelectorAll('form[action="/api/subscribe"]').forEach(function(f){ if(!f.querySelector('input[name=src]')){ var i=document.createElement('input'); i.type='hidden'; i.name='src'; i.value=src; f.appendChild(i);} });
       var body=JSON.stringify({p:location.pathname,s:src,v:v,d:(innerWidth<760?'phone':'desktop')});
       navigator.sendBeacon ? navigator.sendBeacon('/api/hit', new Blob([body],{type:'application/json'})) : fetch('/api/hit',{method:'POST',headers:{'content-type':'application/json'},body:body,keepalive:true});
     }catch(e){} })();
