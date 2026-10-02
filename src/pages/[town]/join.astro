@@ -1,18 +1,23 @@
 ---
-// Signup landing page for ads and shares: one job, get an email address. Shows a live taste of this morning's edition
-// (top headlines and the forecast) so people see exactly what they're signing up for. Town comes from the URL.
+// Signup landing page for ads and shares: one job, get an email address. Proof is real, never invented: this
+// morning's actual edition (subject line and send time), live headlines and forecast, and real signup numbers once
+// they're meaningful. No testimonials unless a reader has actually given one.
 import Base from "../../layouts/Base.astro";
 import { getTown, sb, forecast, niceTitle } from "../../lib/db";
 import { emailSendingOn } from "../../lib/flags";
 const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/");
-const [{ data: top }, fc, { count: subs }, emailOn] = await Promise.all([
+const [{ data: top }, fc, { count: subs }, emailOn, { data: issue }, { data: week }] = await Promise.all([
   sb.rpc("top_stories", { p_town: town.slug, p_hours: 48, p_limit: 10 }),
   forecast(town),
   sb.rpc("subscriber_count").then((r) => ({ count: r.data ?? 0 })),
   emailSendingOn(),
+  sb.rpc("latest_issue", { p_town: town.slug }),
+  sb.rpc("new_subscribers_7d"),
 ]);
 const heads = (top ?? []).filter((s: any) => !["events", "weather", "obituaries", "crime"].includes(s.category)).slice(0, 3);
 const day = fc.find((p: any) => p.isDaytime);
+const iss: any = issue ?? null;
+const sentLabel = iss?.sent_at ? new Date(iss.sent_at).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "long", hour: "numeric", minute: "2-digit" }) : null;
 Astro.response.headers.set("Cache-Control", "public, max-age=600, s-maxage=600");
 ---
 <Base title={`Get ${town.name} news in your inbox, free — ${town.name} Wire`} {town} desc={`${town.name}'s news, weather, events and Friday night scores in one short email${emailOn ? " every weekday at 7 a.m." : ""}. Free. Unsubscribe anytime.`}>
@@ -25,18 +30,34 @@ Astro.response.headers.set("Cache-Control", "public, max-age=600, s-maxage=600")
       <div><b>Get the {town.name} morning email</b><span>Free. No spam. Unsubscribe with one click.</span></div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap"><input type="hidden" name="town" value={town.slug} /><input type="email" name="email" required placeholder="Your email" aria-label="Email address" style="flex:1;min-width:12rem" /><button class="btn">Sign me up</button></div>
     </form>
-    {(heads.length > 0 || day) && <section style="border:1px solid var(--line,#DCE3EA);border-radius:6px;padding:1rem 1.2rem;margin:1.4rem 0">
-      <h3 class="group" style="margin-top:0">What this morning's email looks like</h3>
-      {day && <p style="margin:.2rem 0 .8rem"><b>{day.temperature}°</b> and {String(day.shortForecast).toLowerCase()} today in {town.name}.</p>}
-      <ul class="plain">{heads.map((h: any) => <li><a href={`/${town.slug}/s/${h.id}`}>{niceTitle(h.title)}</a></li>)}</ul>
+    {(week ?? 0) >= 5 && <p class="fix" style="margin-top:-.6rem"><b>{week} neighbors</b> signed up this week.</p>}
+    {(subs ?? 0) >= 250 && <p class="fix">Join {(subs ?? 0).toLocaleString()} {town.name} readers who already get it.</p>}
+
+    {(iss?.subject || heads.length > 0 || day) && <section style="border:1px solid var(--line,#DCE3EA);border-radius:6px;padding:1rem 1.2rem;margin:1.4rem 0">
+      <h3 class="group" style="margin-top:0">{iss?.subject ? "The latest edition" : "What the morning email looks like"}</h3>
+      {iss?.subject && <p style="margin:.2rem 0 .6rem"><span style="color:var(--slate,#5B6878);font-size:.9rem">Sent {sentLabel}</span><br/><b>{iss.subject}</b></p>}
+      {day && <p style="margin:.2rem 0 .8rem">Today: <b>{day.temperature}°</b> and {String(day.shortForecast).toLowerCase()} in {town.name}.</p>}
+      {heads.length > 0 && <><p style="margin:.4rem 0 .2rem;font-weight:700">Also in the news:</p><ul class="plain">{heads.map((h: any) => <li><a href={`/${town.slug}/s/${h.id}`}>{niceTitle(h.title)}</a></li>)}</ul></>}
       <p class="fix" style="margin-bottom:0">Plus events coming up, obituaries, and the weekend guide on Thursdays.</p>
     </section>}
+
     <h3 class="group">Why people read it</h3>
     <div class="util-grid">
       <div class="util"><b>Local only</b><span>Just {town.name}: City Hall, schools, roads, restaurants, Friday nights. Nothing national.</span></div>
       <div class="util"><b>Short</b><span>Read it with your coffee. Every story links to its source if you want more.</span></div>
       <div class="util"><b>Free, and easy to leave</b><span>We never sell your email. One click unsubscribes. <a href="/privacy">Privacy policy</a>.</span></div>
     </div>
-    {(subs ?? 0) >= 250 && <p class="fix">Join {(subs ?? 0).toLocaleString()} neighbors who already get it.</p>}
+
+    <h3 class="group">Questions</h3>
+    <dl class="faq">
+      <dt>How often will I hear from you?</dt><dd>{emailOn ? "Once each weekday morning at 7, nothing on weekends." : "One short edition each weekday."} Plus one welcome email when you sign up.</dd>
+      <dt>Does it cost anything?</dt><dd>No. It's free and supported by local businesses that sponsor the site, always clearly labeled.</dd>
+      <dt>Can I stop anytime?</dt><dd>Yes. Every email has a one-click unsubscribe link.</dd>
+    </dl>
+
+    <form class="sub-band" method="post" action="/api/subscribe">
+      <div><b>Ready?</b><span>Your first email arrives {emailOn ? "at 7 a.m. on the next weekday" : "with the next edition"}.</span></div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap"><input type="hidden" name="town" value={town.slug} /><input type="email" name="email" required placeholder="Your email" aria-label="Email address" style="flex:1;min-width:12rem" /><button class="btn">Sign me up</button></div>
+    </form>
   </div>
 </Base>
