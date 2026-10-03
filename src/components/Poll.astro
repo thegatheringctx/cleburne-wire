@@ -12,6 +12,8 @@ const { data: poll } = await sb.from("polls").select("id,question,options,ends_a
     (function(){ var el=document.currentScript.closest('.poll'); var id=el.dataset.poll; var k='cw_voter'; var v=localStorage.getItem(k); if(!v){v=(crypto.randomUUID?crypto.randomUUID():String(Math.random()).slice(2)+Date.now()); localStorage.setItem(k,v);}
       function show(r){ var n=r.n||0; el.classList.add('voted'); el.querySelectorAll('button').forEach(function(b,i){ var c=(r.counts||[])[i]||0, p=n?Math.round(c*100/n):0; b.querySelector('.bar').style.width=p+'%'; b.querySelector('.pct').textContent=p+'%'; b.disabled=true;}); el.querySelector('.poll-n').textContent=n+' '+(n===1?'vote':'votes')+'. Not a scientific poll.'; }
       function send(choice){ fetch('/api/play',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'poll',poll:id,voter:v,choice:choice})}).then(function(r){return r.json()}).then(function(r){ localStorage.setItem('cw_poll_'+id,'1'); show(r); }); }
+      // Arriving from a vote in the morning email: show the results right away.
+      if(new URLSearchParams(location.search).get('voted')===id) localStorage.setItem('cw_poll_'+id,'1');
       if(localStorage.getItem('cw_poll_'+id)) send(-1);
       el.querySelectorAll('button').forEach(function(b){ b.addEventListener('click',function(){ b.classList.add('mine'); send(+b.dataset.i); }); });
     })();
