@@ -4,6 +4,7 @@ import Base from "../../layouts/Base.astro";
 import Feed from "../../components/Feed.astro";
 import SubscribeBand from "../../components/SubscribeBand.astro";
 import HouseAd from "../../components/HouseAd.astro";
+import Poll from "../../components/Poll.astro";
 import HOMETOWN from "../../lib/hometown.json";
 import { getTown, getFeed, getAlerts, getCategories, getBusinesses, sb, fmtTime, radioLive, forecast, niceTitle } from "../../lib/db";
 const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
@@ -111,6 +112,7 @@ const emailOn = await emailSendingOn();
     <ul>{events.slice(0, 4).map((e) => <li><a href={`/${town.slug}/s/${e.id}`}><b>{d(e.event_at,{weekday:"short"})} {d(e.event_at,{day:"numeric"})}</b><span>{e.title}</span></a></li>)}</ul>
   </section>}
 
+  <div id="poll"><Poll {town} /></div>
   <SubscribeBand {town} />
   <section class="play">
     <h3 class="explore-h">Play along</h3>
