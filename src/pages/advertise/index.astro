@@ -22,7 +22,7 @@ const [{ data: taken }, { count: subs }, { count: founders }, { count: biz }, { 
 const partnersLeft = Math.max(0, 5 - (partners ?? 0));
 const sold = new Set((taken ?? []).filter((a) => a.placement === "category-sponsor").map((a) => a.category));
 const emailSold = (taken ?? []).some((a) => a.placement === "newsletter" && a.category === "presenting");
-const SECTIONS = [["sports", town.team_name ? `Sports and ${town.team_name}` : "Sports"], ["obituaries", "Obituaries"], ["homes", "Homes and money"], ["meetings", "Public meetings"], ["weekend", "Weekend guide"]];
+const SECTIONS = [["obituaries", "Obituaries"], ["homes", "Homes and money"], ["meetings", "Public meetings"], ["weekend", "Weekend guide"]];
 const open = SECTIONS.filter(([k]) => !sold.has(k));
 const foundingLeft = Math.max(0, 10 - (founders ?? 0));
 const readers = (await sb.rpc("readers_30d")).data ?? 0;
@@ -30,6 +30,10 @@ const readers = (await sb.rpc("readers_30d")).data ?? 0;
 const emailOn = (await sb.rpc("email_sending_on")).data !== false;
 // Real numbers, always shown: an advertiser should see the audience before paying, even while it is small.
 const { data: pv30 } = await sb.rpc("site_stats_30d");
+// Game Day (sports sponsorship): one sponsor at a time; its payment link lives in app_settings.public_link_gameday.
+const { data: gameDayLink } = await sb.rpc("public_setting", { p_key: "public_link_gameday" });
+const gameDaySold = sold.has("sports");
+const team = town.team_name ?? "Game";
 const stats = (pv30 ?? {}) as any;
 Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
 ---
@@ -49,6 +53,12 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300")
     <div class="tier"><span class="t-name">Featured Listing</span><div class="t-price">$30<small>/mo</small></div>
       <ul><li>Top of your category in the Guide, with a Featured badge</li><li>Your hours, phone and directions front and center</li><li>Shown to people ready to buy</li></ul>
       <a class="btn ghost" href={L.listing}>Get featured</a></div>
+    <div class="tier"><span class="t-name">{team} Game Day</span><div class="t-price">$99<small>/mo</small></div>
+      <ul><li>"Presented by" your business on the {town.name} sports page</li><li>Your name on every game-day preview and final-score recap, which also post to Facebook</li><li>Top of the Monday sports roundup in the morning email</li><li>One sponsor at a time</li></ul>
+      <p class="avail">{gameDaySold ? "Taken. Ask to join the waitlist." : "Available now"}</p>
+      {gameDaySold ? <a class="btn ghost" href="mailto:news@cleburnewire.com?subject=Game%20Day%20waitlist">Join the waitlist</a>
+        : gameDayLink ? <a class="btn ghost" href={gameDayLink}>Sponsor game day</a>
+        : <a class="btn ghost" href={`mailto:news@cleburnewire.com?subject=${encodeURIComponent(`${team} Game Day sponsorship`)}`}>Ask about game day</a>}</div>
     <div class="tier best"><span class="t-flag">Best value</span><span class="t-name">Local Partner</span><div class="t-price">$149<small>/mo</small></div>
       <ul><li>Everything in Featured Listing</li><li>Your ad across the site, in the news feed and sidebar</li>{emailOn && <li>Your own day in the morning email every week (5 partners max)</li>}<li>Live results page, yours the moment you pay</li></ul>
       <p class="avail">{partnersLeft ? "Limited to 5 businesses" : "All 5 spots are taken. Ask to join the waitlist."}</p>
