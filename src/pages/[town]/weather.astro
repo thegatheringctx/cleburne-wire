@@ -14,6 +14,10 @@ for (const p of periods) {
 }
 const now = periods[0];
 const rain = (p: any) => p?.probabilityOfPrecipitation?.value ?? null;
+// Live radar loop from the town's National Weather Service radar (towns.profile.radar_station), refreshed by NWS every few minutes.
+const radar = (town.profile as any)?.radar_station as string | undefined;
+const [s0, w0, n0, e0] = Array.isArray(town.bbox) ? town.bbox : [32.26, -97.49, 32.43, -97.29];
+const nwsLink = `https://forecast.weather.gov/MapClick.php?lat=${((s0 + n0) / 2).toFixed(4)}&lon=${((w0 + e0) / 2).toFixed(4)}`;
 Astro.response.headers.set("Cache-Control", "public, max-age=900, s-maxage=900");
 ---
 <Base title={`${town.name} weather: 7-day forecast and alerts`} {town} {alerts} desc={`The 7-day forecast for ${town.name}, Texas from the National Weather Service, plus active alerts.`}>
@@ -32,7 +36,10 @@ Astro.response.headers.set("Cache-Control", "public, max-age=900, s-maxage=900")
         <small>{(d.day ?? d.night)?.shortForecast}</small>
         {rain(d.day ?? d.night) ? <small class="wx-rain">{rain(d.day ?? d.night)}% rain</small> : null}
       </div>)}</div>
-    </> : <p class="empty">The forecast is temporarily unavailable. <a href="https://forecast.weather.gov/MapClick.php?lat=32.3477&lon=-97.3867" target="_blank" rel="noopener">See it at weather.gov</a>.</p>}
+    </> : <p class="empty">The forecast is temporarily unavailable. <a href={nwsLink} target="_blank" rel="noopener">See it at weather.gov</a>.</p>}
+    {radar && <section class="radar"><h3 class="group">Live radar</h3>
+      <img src={`https://radar.weather.gov/ridge/standard/${radar}_loop.gif`} alt={`Animated weather radar for the ${town.name} area`} loading="lazy" referrerpolicy="no-referrer" />
+      <small>Last hour of radar from the National Weather Service. <a href={`https://radar.weather.gov/station/${radar.toLowerCase()}/standard`} target="_blank" rel="noopener">Full-size radar</a></small></section>}
     <p class="fix">Forecast: National Weather Service, Fort Worth office. For emergencies call 911. <a href={`/${town.slug}/roads`}>Roads and outages</a></p>
     {wxAlerts.length > 0 && <><h3 class="group">Alerts and weather news</h3><ul class="plain">{wxAlerts.map((s) => <li><a href={`/${town.slug}/s/${s.id}`}>{niceTitle(s.title)}</a><small>{fmtTime(s.published_at)}</small></li>)}</ul></>}
   </Page>
