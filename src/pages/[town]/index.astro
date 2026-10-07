@@ -33,6 +33,8 @@ const { data: allGames } = await sb.from("games").select("starts_at,opponent,hom
 const lastG = [...(allGames ?? [])].reverse().find((g: any) => g.result);
 const nextG = (allGames ?? []).find((g: any) => !g.result && +new Date(g.starts_at) > Date.now() - 3 * 36e5);
 const cap1 = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
+// A game is "in progress" from its start time until a final is posted (up to 3.5 hours); the page then refreshes itself.
+const inProgress = !!nextG && +new Date(nextG.starts_at) <= Date.now() && Date.now() - +new Date(nextG.starts_at) < 3.5 * 36e5;
 const hg = hgames ?? []; const W = hg.filter((g) => g.result === "W").length, L = hg.filter((g) => g.result === "L").length;
 const ng = hg.find((g) => !g.result && +new Date(g.starts_at) > Date.now() - 3 * 36e5);
 const [{ data: qz }, { data: topPhoto }] = await Promise.all([
@@ -106,9 +108,12 @@ const emailOn = await emailSendingOn();
   {(lastG || nextG) && <div class="score-strip" aria-label={`${town.team_name ?? "Home team"} scores`}>
     <b class="tm">{town.team_name ?? "Home team"}</b>
     {lastG && <span>{cap1(lastG.sport)}: <span class={lastG.result === "W" ? "w" : "l"}>{lastG.result === "W" ? "W" : lastG.result === "L" ? "L" : "T"} {Math.max(lastG.us, lastG.them)}-{Math.min(lastG.us, lastG.them)}</span> {lastG.home ? "vs" : "at"} {lastG.opponent}</span>}
-    {nextG && <span>Next: {cap1(nextG.sport)} {nextG.home ? "vs" : "at"} {nextG.opponent}, {d(nextG.starts_at, { weekday: "short" })} {new Date(nextG.starts_at).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" })}</span>}
+    {nextG && (inProgress
+      ? <span><span class="live">Live now</span> {cap1(nextG.sport)} {nextG.home ? "vs" : "at"} {nextG.opponent}{nextG.us != null && nextG.them != null ? <b style="color:#fff"> {nextG.us}-{nextG.them}</b> : null}</span>
+      : <span>Next: {cap1(nextG.sport)} {nextG.home ? "vs" : "at"} {nextG.opponent}, {d(nextG.starts_at, { weekday: "short" })} {new Date(nextG.starts_at).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" })}</span>)}
     {live ? <a href={`https://mixlr.com/${town.radio_mixlr}`} target="_blank" rel="noopener">Listen live now</a> : <a href={`/${town.slug}/sports`}>Scores and schedule</a>}
   </div>}
+  {inProgress && <script is:inline>setTimeout(function(){ if(!document.hidden) location.reload(); }, 180000);</script>}
   {(following ?? []).length > 0 && <nav class="following" aria-label="Stories we're following"><span>Following</span>{following!.map((f) => <a href={`/${town.slug}/follow/${f.slug}`}>{f.title}</a>)}<a class="all" href={`/${town.slug}/follow`}>All</a></nav>}
   {civic && <a class="civic-banner" href={`/${town.slug}/explain/${civic.slug}`}><b>{civic.title}</b><span>What it builds, what it costs you, and how to vote.</span><span class="go">Read the voter guide</span></a>}
 
@@ -134,6 +139,7 @@ const emailOn = await emailSendingOn();
     <div class="play-grid">
       <a class="pl pl-pick" href={`/${town.slug}/pickem`}><span>Pick'em</span><b>{ng ? `Call the score: ${ng.home ? "vs" : "at"} ${ng.opponent}` : `${town.team_name ?? "Football"} Pick'em`}</b><small>Season leaderboard. Picks close at kickoff.</small></a>
       <a class="pl pl-quiz" href={`/${town.slug}/quiz`}><span>Weekly quiz</span><b>{qz?.title ?? `The ${town.name} news quiz`}</b><small>Five questions. How well do you know this week?</small></a>
+      <a class="pl pl-eat" href={`/${town.slug}/eat`}><span>Can't decide?</span><b>Where should we eat tonight?</b><small>One tap picks a local spot for you.</small></a>
       <a class="pl pl-photo" href={`/${town.slug}/photos`} style={topPhoto ? `--bg:url('${import.meta.env.PUBLIC_SUPABASE_URL}/storage/v1/object/public/reader-photos/${topPhoto.path}')` : ""}><span>Photo of the week</span><b>{topPhoto?.caption ?? `Share your best shot of ${town.name}`}</b><small>Submit a photo or vote for your favorite.</small></a>
     </div>
   </section>
