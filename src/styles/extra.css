@@ -1,0 +1,11 @@
+/* Additions kept separate from global.css: thumbnail icons for stories without photos, and the home score strip. */
+.tl-ic{display:grid;place-items:center;background:linear-gradient(135deg,var(--c,#173556),#0E2238)}
+.tl-ic::after{content:"";width:1.7rem;height:1.7rem;background:rgba(255,255,255,.9);-webkit-mask:var(--ico,url(/icons/landmark.svg)) center/contain no-repeat;mask:var(--ico,url(/icons/landmark.svg)) center/contain no-repeat}
+.tl-ic.c-government{--ico:url(/icons/landmark.svg)}.tl-ic.c-crime{--ico:url(/icons/shield-check.svg)}.tl-ic.c-schools{--ico:url(/icons/graduation-cap.svg)}
+.tl-ic.c-sports{--ico:url(/icons/flame.svg)}.tl-ic.c-business{--ico:url(/icons/shopping-bag.svg)}.tl-ic.c-real-estate{--ico:url(/icons/house.svg)}
+.tl-ic.c-events{--ico:url(/icons/ticket.svg)}.tl-ic.c-community{--ico:url(/icons/party-popper.svg)}.tl-ic.c-roads{--ico:url(/icons/car.svg)}.tl-ic.c-news{--ico:url(/icons/landmark.svg)}
+/* Home: home-team score strip */
+.score-strip{display:flex;flex-wrap:wrap;gap:.4rem 1.2rem;align-items:center;background:var(--navy,#0E2238);color:#DCE6F0;border-left:6px solid var(--gold,#F4B400);border-radius:6px;padding:.7rem 1rem;margin:1rem 0;font-size:.95rem}
+.score-strip b.tm{color:#fff;font-stretch:80%;font-weight:900;font-size:1.05rem;letter-spacing:.01em}
+.score-strip .w{color:#7EE2A8;font-weight:800}.score-strip .l{color:#FF9B9B;font-weight:800}
+.score-strip a{color:var(--gold,#F4B400);font-weight:700;text-decoration:none}.score-strip a:hover{text-decoration:underline}
