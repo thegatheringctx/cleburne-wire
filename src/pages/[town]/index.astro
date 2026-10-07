@@ -27,6 +27,12 @@ const [{ data: hgames }, { data: nextMeet }, { count: bizCount }] = await Promis
   sb.from("stories").select("id,title,event_at").eq("status","published").in("category",["government","schools"]).contains("tags",["agenda"]).gte("event_at", now.toISOString()).order("event_at").limit(1).maybeSingle(),
   sb.from("businesses").select("id", { count: "exact", head: true }).eq("town_id", town.id).eq("active", true),
 ]);
+// Score strip: the home team's latest result (last 4 days) and next game, any sport.
+const { data: allGames } = await sb.from("games").select("starts_at,opponent,home,result,us,them,sport,teams!inner(is_home_town,town_id)").eq("teams.is_home_town", true).eq("teams.town_id", town.id)
+  .gte("starts_at", new Date(Date.now() - 4 * 864e5).toISOString()).lte("starts_at", new Date(Date.now() + 8 * 864e5).toISOString()).order("starts_at");
+const lastG = [...(allGames ?? [])].reverse().find((g: any) => g.result);
+const nextG = (allGames ?? []).find((g: any) => !g.result && +new Date(g.starts_at) > Date.now() - 3 * 36e5);
+const cap1 = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
 const hg = hgames ?? []; const W = hg.filter((g) => g.result === "W").length, L = hg.filter((g) => g.result === "L").length;
 const ng = hg.find((g) => !g.result && +new Date(g.starts_at) > Date.now() - 3 * 36e5);
 const [{ data: qz }, { data: topPhoto }] = await Promise.all([
@@ -49,7 +55,10 @@ const pool = fresh.length >= 3 ? fresh : news;
 const leadPool = pool.filter((s: any) => !/ Wire$/.test(s.source_name ?? ""));
 const lead = [...(leadPool.length ? leadPool : pool)].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || +new Date(b.published_at) - +new Date(a.published_at)).find((s) => s.image_url) ?? pool[0];
 const rest0 = news.filter((s) => s.id !== lead?.id);
-const top6 = [...rest0].sort((a, b) => ((b.score ?? 0) - (a.score ?? 0)) || (+new Date(b.published_at) - +new Date(a.published_at))).slice(0, 6);
+// "Today in town" means recent: last 3.5 days (7 if the news has been slow), best first.
+const ageDays = (s: any) => (Date.now() - +new Date(s.published_at)) / 864e5;
+const recent6 = rest0.filter((s: any) => ageDays(s) < 3.5);
+const top6 = [...(recent6.length >= 4 ? recent6 : rest0.filter((s: any) => ageDays(s) < 7))].sort((a, b) => ((b.score ?? 0) - (a.score ?? 0)) || (+new Date(b.published_at) - +new Date(a.published_at))).slice(0, 6);
 const trio: any[] = [];
 const used = new Set([lead?.id, ...trio.map((t) => t.id)]);
 const rest = news.filter((x) => x.id !== lead?.id && !top6.some((t) => t.id === x.id)).slice(0, 18);
@@ -94,6 +103,12 @@ const emailOn = await emailSendingOn();
 
 
 
+  {(lastG || nextG) && <div class="score-strip" aria-label={`${town.team_name ?? "Home team"} scores`}>
+    <b class="tm">{town.team_name ?? "Home team"}</b>
+    {lastG && <span>{cap1(lastG.sport)}: <span class={lastG.result === "W" ? "w" : "l"}>{lastG.result === "W" ? "W" : lastG.result === "L" ? "L" : "T"} {Math.max(lastG.us, lastG.them)}-{Math.min(lastG.us, lastG.them)}</span> {lastG.home ? "vs" : "at"} {lastG.opponent}</span>}
+    {nextG && <span>Next: {cap1(nextG.sport)} {nextG.home ? "vs" : "at"} {nextG.opponent}, {d(nextG.starts_at, { weekday: "short" })} {new Date(nextG.starts_at).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" })}</span>}
+    {live ? <a href={`https://mixlr.com/${town.radio_mixlr}`} target="_blank" rel="noopener">Listen live now</a> : <a href={`/${town.slug}/sports`}>Scores and schedule</a>}
+  </div>}
   {(following ?? []).length > 0 && <nav class="following" aria-label="Stories we're following"><span>Following</span>{following!.map((f) => <a href={`/${town.slug}/follow/${f.slug}`}>{f.title}</a>)}<a class="all" href={`/${town.slug}/follow`}>All</a></nav>}
   {civic && <a class="civic-banner" href={`/${town.slug}/explain/${civic.slug}`}><b>{civic.title}</b><span>What it builds, what it costs you, and how to vote.</span><span class="go">Read the voter guide</span></a>}
 
