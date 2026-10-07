@@ -9,3 +9,26 @@
 .score-strip b.tm{color:#fff;font-stretch:80%;font-weight:900;font-size:1.05rem;letter-spacing:.01em}
 .score-strip .w{color:#7EE2A8;font-weight:800}.score-strip .l{color:#FF9B9B;font-weight:800}
 .score-strip a{color:var(--gold,#F4B400);font-weight:700;text-decoration:none}.score-strip a:hover{text-decoration:underline}
+/* "Where should we eat?" picker */
+.eat{background:var(--mist,#EEF2F6);border-radius:8px;padding:1.2rem;margin:.5rem 0 1rem}
+.eat-kinds{display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:.8rem}
+.eat-kinds button{border:2px solid var(--navy,#0E2238);background:#fff;color:var(--navy,#0E2238);border-radius:999px;padding:.4rem .85rem;font-weight:700;cursor:pointer;font-size:.95rem}
+.eat-kinds button[aria-pressed="true"]{background:var(--navy,#0E2238);color:#fff}
+.eat-local{display:block;margin:.2rem 0 1rem;font-size:.95rem}
+.eat-go{font-size:1.15rem;padding:.8rem 1.6rem}
+.eat-card{display:grid;gap:1rem;background:#fff;border-left:6px solid var(--gold,#F4B400);border-radius:6px;padding:1rem;margin-top:1rem}
+@media(min-width:40rem){.eat-card{grid-template-columns:12rem 1fr}}
+.eat-card img{width:100%;height:9rem;object-fit:cover;border-radius:6px}
+.eat-card small{color:var(--slate,#5B6878);font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:.8rem}
+.eat-card h2{margin:.15rem 0 .4rem;font-size:1.6rem}
+.eat-meta{color:var(--slate,#5B6878);font-size:.92rem}
+/* Live game */
+.score-strip .live{display:inline-flex;align-items:center;gap:.35rem;color:#fff;font-weight:800}
+.score-strip .live::before{content:"";width:.6rem;height:.6rem;border-radius:50%;background:#FF4D4D;animation:pulse 1.4s infinite}
+@keyframes pulse{0%{opacity:1}50%{opacity:.25}100%{opacity:1}}
+/* Weather radar */
+.radar{margin:1rem 0 1.5rem}.radar img{width:100%;max-width:600px;border-radius:6px;display:block;background:#111}
+.radar small{display:block;color:var(--slate,#5B6878);margin-top:.35rem}
+.pl.pl-eat{background:linear-gradient(135deg,#B7791F,#0E2238)}
+.eat-local{display:flex;align-items:center;gap:.5rem;font-weight:600}.eat-local input{width:auto;margin:0;flex:none}
+.eat-card img[hidden]{display:none}
