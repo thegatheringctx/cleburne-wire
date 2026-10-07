@@ -1,0 +1,57 @@
+---
+// "Where should we eat?": a one-tap restaurant picker from the town's Guide. Filters by kind of food and can skip the
+// national chains. The pick is random and fair (featured listings get no extra odds); featured places are shown,
+// labeled, in their own row underneath, which is what a Featured Listing pays for.
+import Base from "../../layouts/Base.astro";
+import Page from "../../components/Page.astro";
+import { getTown, getAlerts, sb } from "../../lib/db";
+const town = await getTown(Astro.params.town!); if (!town) return Astro.redirect("/cleburne");
+const KINDS: [string, string][] = [["all", "Anything"], ["mexican", "Mexican"], ["bbq", "BBQ"], ["burgers", "Burgers"], ["pizza-italian", "Pizza & Italian"], ["restaurants", "Sit-down"], ["breakfast", "Breakfast"], ["coffee", "Coffee"], ["bakeries", "Sweets"]];
+const cats = KINDS.map(([k]) => k).filter((k) => k !== "all").concat(["bars"]);
+const [alerts, { data }] = await Promise.all([getAlerts(town.id),
+  sb.from("businesses").select("name,slug,category,rating,rating_count,address,description,tier,image_url").eq("town_id", town.id).eq("active", true).in("category", cats).not("address", "is", null).limit(400)]);
+// Big national chains, so "local places only" means something. Matched on the start of the name.
+const CHAINS = /^(mcdonald|burger king|wendy|sonic|taco bell|whataburger|chick-fil-a|subway|domino|pizza hut|papa john|little caesar|dairy queen|starbucks|dunkin|kfc|popeyes|church's|jack in the box|arby|applebee|chili's|ihop|denny|cracker barrel|panda express|braum|schlotzsky|jersey mike|jimmy john|whataburger|olive garden|red lobster|golden corral|raising cane|wingstop|freddy|culver|5 guys|five guys|panera|chipotle|torchy|smoothie king|tropical smoothie|shipley|krispy kreme|marco's|cicis|long john silver|el chico|on the border|buffalo wild|sweetgreen|cinnabon|baskin|carl's jr|del taco|jason's deli|dickey|rudy's|twin peaks|hooters|logan's|texas roadhouse|outback|longhorn|cheddar|whataburger)/i;
+const places = (data ?? []).map((b: any) => ({ n: b.name, s: b.slug, c: b.category, r: b.rating, rc: b.rating_count, a: (b.address ?? "").split(",")[0], d: b.description ?? "", f: b.tier === "featured", img: b.image_url, chain: CHAINS.test(b.name) }));
+const featured = places.filter((p) => p.f);
+Astro.response.headers.set("Cache-Control", "public, max-age=1800, s-maxage=1800");
+---
+<Base title={`Where should we eat in ${town.name}? — ${town.name} Wire`} {town} {alerts} desc={`Can't decide where to eat in ${town.name}? Pick a kind of food and get a random local pick from ${places.length} restaurants, coffee shops and bakeries.`}>
+  <Page {town} title="Where should we eat?" dek={`Can't decide? Pick a kind of food and we'll choose one of ${places.length} places in ${town.name} for you.`} crumbs={[{ label: "Guide", href: `/${town.slug}/guide` }]}>
+    <div class="eat">
+      <div class="eat-kinds" role="group" aria-label="Kind of food">{KINDS.map(([k, l], i) => <button type="button" data-k={k} aria-pressed={i === 0 ? "true" : "false"}>{l}</button>)}</div>
+      <label class="eat-local"><input type="checkbox" id="eat-local" checked /> Local places only (skip the big chains)</label>
+      <button type="button" class="btn eat-go" id="eat-go">Pick for me</button>
+      <div class="eat-card" id="eat-card" hidden>
+        <img id="eat-img" alt="" referrerpolicy="no-referrer" hidden />
+        <div><small id="eat-kind"></small><h2 id="eat-name"></h2><p id="eat-desc"></p><p class="eat-meta" id="eat-meta"></p>
+          <p><a class="btn" id="eat-link" href="#">See hours and directions</a> <button type="button" class="btn ghost" id="eat-again">Pick again</button></p></div>
+      </div>
+      <p class="fix">Picks are random and fair; no one pays for better odds.</p>
+    </div>
+    {featured.length > 0 && <><h3 class="group">Featured in the Guide</h3><ul class="plain">{featured.map((p) => <li><a href={`/${town.slug}/biz/${p.s}`}>{p.n}</a><small>Featured listing</small></li>)}</ul></>}
+    <div class="notice" style="margin-top:2rem"><b>Own a restaurant?</b> Make sure your listing has your photo and hours, or get the Featured spot. <a href="/advertise">See options</a></div>
+  </Page>
+  <script is:inline define:vars={{ places, slug: town.slug }}>
+    (function(){
+      var kind='all', last=null, LABEL={mexican:'Mexican',bbq:'BBQ',burgers:'Burgers','pizza-italian':'Pizza & Italian',restaurants:'Restaurant',breakfast:'Breakfast',coffee:'Coffee',bakeries:'Bakery',bars:'Bar'};
+      var $=function(id){return document.getElementById(id)};
+      document.querySelectorAll('.eat-kinds button').forEach(function(b){ b.addEventListener('click',function(){ kind=b.dataset.k; document.querySelectorAll('.eat-kinds button').forEach(function(x){x.setAttribute('aria-pressed', x===b?'true':'false')}); }); });
+      function pick(){
+        var local=$('eat-local').checked;
+        var pool=places.filter(function(p){ return (kind==='all' ? p.c!=='bars' : p.c===kind) && (!local || !p.chain); });
+        if(!pool.length){ $('eat-card').hidden=false; $('eat-name').textContent='Nothing matches yet'; $('eat-desc').textContent='Try another kind of food, or include the chains.'; $('eat-meta').textContent=''; $('eat-kind').textContent=''; $('eat-img').hidden=true; $('eat-link').style.display='none'; return; }
+        var p=pool[Math.floor(Math.random()*pool.length)]; if(pool.length>1 && last && p.s===last){ p=pool[(pool.indexOf(p)+1)%pool.length]; } last=p.s;
+        $('eat-card').hidden=false; $('eat-link').style.display='';
+        $('eat-kind').textContent=LABEL[p.c]||'';
+        $('eat-name').textContent=p.n;
+        $('eat-desc').textContent=p.d||'';
+        $('eat-meta').textContent=[p.a, p.r ? (p.r.toFixed(1)+' stars from '+p.rc+' Google reviews') : ''].filter(Boolean).join('  |  ');
+        $('eat-link').href='/'+slug+'/biz/'+p.s;
+        var im=$('eat-img'); im.hidden=true; im.onload=function(){ im.hidden=false; }; im.onerror=function(){ im.hidden=true; }; if(p.img){ im.src=p.img; } else { im.removeAttribute('src'); }
+        $('eat-card').scrollIntoView({behavior:'smooth',block:'nearest'});
+      }
+      $('eat-go').addEventListener('click',pick); $('eat-again').addEventListener('click',pick);
+    })();
+  </script>
+</Base>
